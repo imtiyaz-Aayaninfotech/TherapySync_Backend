@@ -4,7 +4,7 @@ const ACCESS_SECRET = process.env.JWT_ACCESS_SECRET;
 const REFRESH_SECRET = process.env.JWT_REFRESH_SECRET;
 
 // 🔐 Hardcoded Admin Secret
-const ADMIN_SECRET = "HardcodedSuperSecretForAdminOnly_2025";
+const ADMIN_SECRET = "vP9#Lr2z!Wx8@Tc4^MqJ$fE7NbD1YgAa";
 
 // Generate Access Token (for users)
 const generateAccessToken = (user) => {
