@@ -7,7 +7,9 @@ const PORT = process.env.PORT || 5000;
 
 connectDB();
 
+const adminRoutes = require('./routes/admin.routes');
 app.use(express.json());
+app.use('/api/admin', adminRoutes);
 
 app.get('/', (req, res) => {
   res.send('Welcome to TherapySync Backend API');
