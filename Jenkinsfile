@@ -3,11 +3,11 @@ pipeline {
 
     environment {
         IMAGE_NAME = "docker.io/aayanindia/therapysync_backend"
-        CONTAINER_PORT = "6666"
-        HOST_PORT = "6666"
+        CONTAINER_PORT = "5050"
+        HOST_PORT = "5050"
         DOCKER_HUB_USERNAME = credentials('docker-hub-username')
         DOCKER_HUB_PASSWORD = credentials('docker-hub-password')
-        EMAIL_RECIPIENTS = "daksh.kumar@aayaninfotech.com"
+        EMAIL_RECIPIENTS = "imtiyaz.hussain@aayaninfotech.com"
     }
 
     stages {
@@ -169,7 +169,7 @@ pipeline {
                     """,
                     to: "${EMAIL_RECIPIENTS}",
                     from: "development.aayanindia@gmail.com",
-                    replyTo: "daksh.kumar@aayaninfotech.com",
+                    replyTo: "imtiyaz.hussain@aayaninfotech.com",
                     mimeType: 'text/html'
                 )
             }
@@ -192,7 +192,7 @@ pipeline {
                     attachLog: true,
                     to: "${EMAIL_RECIPIENTS}",
                     from: "development.aayanindia@gmail.com",
-                    replyTo: "daksh.kumar@aayaninfotech.com",
+                    replyTo: "imtiyaz.hussain@aayaninfotech.com",
                     mimeType: 'text/html'
                 )
             }
