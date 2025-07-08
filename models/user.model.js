@@ -47,6 +47,12 @@ const userSchema = new mongoose.Schema({
     type: String,
     default: '',
   },
+  reason: {
+    type: String,
+    enum: ['Berlin', 'Thessaloniki', 'Athens', 'Hamburg', 'Other'],
+    required: true,
+    trim: true,
+  },
 }, { timestamps: true });
 
 module.exports = mongoose.model('User', userSchema);
