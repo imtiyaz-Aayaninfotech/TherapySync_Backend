@@ -7,8 +7,9 @@ const {
   verifyRefreshToken,
 } = require("../utils/jwt.util");
 
-const generateOTP = () =>
-  Math.floor(100000 + Math.random() * 900000).toString();
+// const generateOTP = () =>
+//   Math.floor(100000 + Math.random() * 900000).toString();
+const generateOTP = () => "123456"; // fixed OTP
 
 exports.register = async (req, res) => {
   try {
@@ -33,7 +34,7 @@ exports.register = async (req, res) => {
         existingUser.otp = { code: otp, expiresAt: otpExpiry };
         await existingUser.save();
 
-        await sendOtpEmail(email, otp, "Resend OTP");
+        // await sendOtpEmail(email, otp, "Resend OTP");
 
         return res.status(200).json({
           message: "OTP expired. New OTP sent to your email.",
@@ -65,7 +66,7 @@ exports.register = async (req, res) => {
 
     await newUser.save();
 
-    await sendOtpEmail(email, otp, "Account Registration");
+    // await sendOtpEmail(email, otp, "Account Registration");
 
     res.status(201).json({ message: "User registered. OTP sent to email." });
   } catch (error) {
@@ -251,7 +252,7 @@ exports.forgotPassword = async (req, res) => {
     user.otp = { code: otp, expiresAt: otpExpiry };
     await user.save();
 
-    await sendOtpEmail(email, otp, "Password Reset");
+    // await sendOtpEmail(email, otp, "Password Reset");
 
     res.json({ message: "OTP sent to your email for password reset" });
   } catch (error) {

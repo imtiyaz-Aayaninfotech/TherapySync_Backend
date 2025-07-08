@@ -1,11 +1,12 @@
 const nodemailer = require('nodemailer');
 const generateOtpMailOptions = require('./generateOtpMailOptions');
+require('dotenv').config();
 
 const transporter = nodemailer.createTransport({
   service: 'Gmail',
   auth: {
-    user: 'ai083.development@gmail.com',
-    pass: 'ayob xhol ssvb koqx', 
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS, 
   },
 });
 
