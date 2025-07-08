@@ -1,9 +1,19 @@
-const express = require('express');
+const express = require("express");
 const router = express.Router();
-const { getAllUsers } = require('../controllers/user.controller');
-const verifyAuth = require('../middlewares/auth.middleware'); 
+const {
+  getAllUsers,
+  updateUser,
+  deleteUser,
+} = require("../controllers/user.controller");
+const {
+  validateUpdateUser,
+  validateObjectId,
+} = require('../validations/user.validator');
+const verifyAuth = require("../middlewares/auth.middleware");
 
-// ✅ Get all users with filters
-router.get('/all', getAllUsers);
+
+router.get("/all", getAllUsers);
+router.put("/edit/:id",validateObjectId,validateUpdateUser,updateUser);
+router.delete("/delete/:id",validateObjectId,deleteUser);
 
 module.exports = router;
