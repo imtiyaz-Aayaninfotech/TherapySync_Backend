@@ -6,6 +6,7 @@ const {
   generateRefreshToken,
   verifyRefreshToken,
 } = require("../utils/jwt.util");
+const uploadSingleImage = require('../utils/aws/uploadSingleImage');
 
 // const generateOTP = () =>
 //   Math.floor(100000 + Math.random() * 900000).toString();
@@ -48,6 +49,12 @@ exports.register = async (req, res) => {
       });
     }
 
+    // ⬆️ Upload image to S3 if provided
+    let imageUrl = '';
+    if (req.file) {
+      imageUrl = await uploadSingleImage(req.file);
+    }
+
     // ✅ CASE 2: New user registration
     const hashedPassword = await bcrypt.hash(password, 10);
 
@@ -58,7 +65,7 @@ exports.register = async (req, res) => {
       phoneNumber,
       gender,
       dateOfBirth,
-      image,
+      image: imageUrl,
       reason,
       otp: { code: otp, expiresAt: otpExpiry },
       isVerified: false,

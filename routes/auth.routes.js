@@ -10,8 +10,9 @@ const {
   verifyForgotOtp,
   resetPassword,
 } = require("../controllers/auth.controller");
+const upload = require('../middlewares/multer.middleware');
 
-router.post("/register", register);
+router.post("/register",upload.single('image'),register);
 router.post("/verify-otp", verifyOtp);
 router.post("/login", login);
 router.post("/refresh-token", refreshAccessToken);
