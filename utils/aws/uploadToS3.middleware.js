@@ -7,11 +7,11 @@ const uploadToS3 = async (req, res, next) => {
     // Define allowed file groups dynamically
     const fileGroups = [
       'image',
-    //   'colorPalletImages',
-    //   'thumbnailImage',
-    //   'contentImages',
-      'videos',
-    //   'documents',
+      'colorPalletImages',
+      'thumbnailImage',
+      'contentImages',
+      'video',
+      'documents',
     ];
 
     const uploadResults = {};
