@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
 
-const agreementSchema = new mongoose.Schema({
+const ConsentSchema = new mongoose.Schema({
   category_id: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Category',
@@ -40,4 +40,4 @@ const agreementSchema = new mongoose.Schema({
   },
 });
 
-module.exports = mongoose.model('Agreement', agreementSchema);
+module.exports = mongoose.model('Consent', ConsentSchema);

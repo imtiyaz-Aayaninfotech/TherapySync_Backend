@@ -1,6 +1,6 @@
 const Joi = require('joi');
 
-exports.validateAgreement = Joi.object({
+exports.validateConsent = Joi.object({
   category_id: Joi.string().required(),
   title: Joi.string().trim().required(),
   termsText: Joi.string().required(),

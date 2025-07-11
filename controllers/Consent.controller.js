@@ -1,10 +1,10 @@
-const Agreement = require('../models/agreement.model');
-const { validateAgreement } = require('../validations/agreement.validator');
+const Consent = require('../models/consent.model');
+const { validateConsent } = require('../validations/consent.validator');
 
 // Create
-exports.createAgreement = async (req, res) => {
+exports.createConsent = async (req, res) => {
   try {
-    const { error } = validateAgreement.validate(req.body);
+    const { error } = validateConsent.validate(req.body);
     if (error)
       return res.status(400).json({
         status: 400,
@@ -13,14 +13,14 @@ exports.createAgreement = async (req, res) => {
         data: null,
       });
 
-    const newAgreement = new Agreement(req.body);
-    await newAgreement.save();
+    const newConsent = new Consent(req.body);
+    await newConsent.save();
 
     res.status(200).json({
       status: 200,
       success: true,
-      message: 'Agreement created successfully',
-      data: newAgreement,
+      message: 'Consent created successfully',
+      data: newConsent,
     });
   } catch (err) {
     res.status(500).json({
@@ -33,14 +33,14 @@ exports.createAgreement = async (req, res) => {
 };
 
 // Get All
-exports.getAllAgreements = async (req, res) => {
+exports.getAllConsents = async (req, res) => {
   try {
-    const agreements = await Agreement.find().populate('category_id');
+    const Consents = await Consent.find().populate('category_id');
     res.status(200).json({
       status: 200,
       success: true,
-      message: 'Agreements fetched successfully',
-      data: agreements,
+      message: 'Consents fetched successfully',
+      data: Consents,
     });
   } catch (err) {
     res.status(500).json({
@@ -53,22 +53,22 @@ exports.getAllAgreements = async (req, res) => {
 };
 
 // Get by ID
-exports.getAgreementById = async (req, res) => {
+exports.getConsentById = async (req, res) => {
   try {
-    const agreement = await Agreement.findById(req.params.id).populate('category_id');
-    if (!agreement)
+    const Consent = await Consent.findById(req.params.id).populate('category_id');
+    if (!Consent)
       return res.status(404).json({
         status: 404,
         success: false,
-        message: 'Agreement not found',
+        message: 'Consent not found',
         data: null,
       });
 
     res.status(200).json({
       status: 200,
       success: true,
-      message: 'Agreement fetched successfully',
-      data: agreement,
+      message: 'Consent fetched successfully',
+      data: Consent,
     });
   } catch (err) {
     res.status(500).json({
@@ -81,9 +81,9 @@ exports.getAgreementById = async (req, res) => {
 };
 
 // Update
-exports.updateAgreement = async (req, res) => {
+exports.updateConsent = async (req, res) => {
   try {
-    const { error } = validateAgreement.validate(req.body);
+    const { error } = validateConsent.validate(req.body);
     if (error)
       return res.status(400).json({
         status: 400,
@@ -92,19 +92,19 @@ exports.updateAgreement = async (req, res) => {
         data: null,
       });
 
-    const updated = await Agreement.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    const updated = await Consent.findByIdAndUpdate(req.params.id, req.body, { new: true });
     if (!updated)
       return res.status(404).json({
         status: 404,
         success: false,
-        message: 'Agreement not found',
+        message: 'Consent not found',
         data: null,
       });
 
     res.status(200).json({
       status: 200,
       success: true,
-      message: 'Agreement updated successfully',
+      message: 'Consent updated successfully',
       data: updated,
     });
   } catch (err) {
@@ -118,21 +118,21 @@ exports.updateAgreement = async (req, res) => {
 };
 
 // Delete
-exports.deleteAgreement = async (req, res) => {
+exports.deleteConsent = async (req, res) => {
   try {
-    const deleted = await Agreement.findByIdAndDelete(req.params.id);
+    const deleted = await Consent.findByIdAndDelete(req.params.id);
     if (!deleted)
       return res.status(404).json({
         status: 404,
         success: false,
-        message: 'Agreement not found',
+        message: 'Consent not found',
         data: null,
       });
 
     res.status(200).json({
       status: 200,
       success: true,
-      message: 'Agreement deleted successfully',
+      message: 'Consent deleted successfully',
       data: null,
     });
   } catch (err) {
@@ -145,18 +145,18 @@ exports.deleteAgreement = async (req, res) => {
   }
 };
 
-// getAgreementsByCategoryId
-exports.getAgreementsByCategoryId = async (req, res) => {
+// getConsentsByCategoryId
+exports.getConsentsByCategoryId = async (req, res) => {
   try {
     const { category_id } = req.params;
-    const agreements = await Agreement.find({ category_id })
+    const Consents = await Consent.find({ category_id })
       .populate('category_id', 'category');
 
     res.status(200).json({
       status: 200,
       success: true,
-      message: 'Agreements fetched by category successfully',
-      data: agreements
+      message: 'Consents fetched by category successfully',
+      data: Consents
     });
   } catch (err) {
     res.status(500).json({
