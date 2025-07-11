@@ -32,7 +32,7 @@ const agreementSchema = new mongoose.Schema({
     type: Date,
     default: Date.now
   },
-  reason: {
+  region: {
     type: String,
     enum: ['Berlin', 'Thessaloniki'],
     required: true,

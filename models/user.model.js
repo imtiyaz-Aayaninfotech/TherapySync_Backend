@@ -47,7 +47,7 @@ const userSchema = new mongoose.Schema({
     type: String,
     default: '',
   },
-  reason: {
+  region: {
     type: String,
     enum: ['Berlin', 'Thessaloniki', 'Athens', 'Hamburg', 'Other'],
     required: true,

@@ -14,7 +14,7 @@ const generateOTP = () => "123456"; // fixed OTP
 
 exports.register = async (req, res) => {
   try {
-    const { email, password, name, phoneNumber, gender, dateOfBirth, image, reason } =
+    const { email, password, name, phoneNumber, gender, dateOfBirth, image, region } =
       req.body;
 
     const existingUser = await User.findOne({ email });
@@ -66,7 +66,7 @@ exports.register = async (req, res) => {
       gender,
       dateOfBirth,
       image: imageUrl,
-      reason,
+      region,
       otp: { code: otp, expiresAt: otpExpiry },
       isVerified: false,
     });

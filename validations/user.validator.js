@@ -8,7 +8,7 @@ exports.validateUpdateUser = (req, res, next) => {
     phoneNumber: Joi.string().pattern(/^[0-9]{10,15}$/),
     gender: Joi.string().valid('Male', 'Female', 'Other'),
     dateOfBirth: Joi.date(),
-    reason: Joi.string().valid('Berlin', 'Thessaloniki'),
+    region: Joi.string().valid('Berlin', 'Thessaloniki'),
     // image: Joi.string().uri(),
   });
 

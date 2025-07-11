@@ -27,7 +27,7 @@ const categorySchema = new mongoose.Schema({
     enum: ['active', 'inactive'],
     default: 'active'
   },
-  reason: {
+  region: {
     type: String,
     enum: ['Berlin', 'Thessaloniki'],
     required: true,

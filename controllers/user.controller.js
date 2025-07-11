@@ -1,7 +1,7 @@
 const User = require('../models/user.model');
 
 /*
-Filter users by reason dynamically (e.g., Berlin, Thessaloniki)
+Filter users by region dynamically (e.g., Berlin, Thessaloniki)
 Pagination support: page, limit
 Sorting: sortBy field and order (asc/desc)
 Search: by name, email, or phoneNumber
@@ -14,15 +14,15 @@ exports.getAllUsers = async (req, res) => {
       limit = 10,
       sortBy = 'createdAt',
       order = 'desc',
-      reason,
+      region,
       search,
     } = req.query;
 
     const query = {};
 
-    // 🔍 Dynamic reason filter
-    if (reason) {
-      query.reason = reason;
+    // 🔍 Dynamic region filter
+    if (region) {
+      query.region = region;
     }
 
     // 🔍 Text search (name, email, phoneNumber)

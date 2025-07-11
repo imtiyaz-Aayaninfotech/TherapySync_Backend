@@ -21,5 +21,5 @@ exports.categoryValidation = Joi.object({
   image: Joi.string().uri().optional().allow(null, ""),
   video: Joi.string().uri().optional().allow(null, ""),
   status: Joi.string().valid("active", "inactive").optional(),
-  reason: Joi.string().valid("Berlin", "Thessaloniki").required(),
+  region: Joi.string().valid("Berlin", "Thessaloniki").required(),
 });

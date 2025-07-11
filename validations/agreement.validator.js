@@ -6,5 +6,5 @@ exports.validateAgreement = Joi.object({
   termsText: Joi.string().required(),
   version: Joi.string().optional(),
   status: Joi.string().valid('active', 'inactive').optional(),
-  reason: Joi.string().valid("Berlin", "Thessaloniki").required(),
+  region: Joi.string().valid("Berlin", "Thessaloniki").required(),
 });

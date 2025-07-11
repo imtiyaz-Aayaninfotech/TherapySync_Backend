@@ -45,20 +45,20 @@ exports.addCategory = async (req, res) => {
   }
 };
 
-// Get All Categories by Reason Only
+// Get All Categories by region Only
 exports.getAllCategories = async (req, res) => {
   try {
-    const { reason } = req.query;
+    const { region } = req.query;
 
-    if (!reason) {
+    if (!region) {
       return res.status(400).json({
         status: 400,
         success: false,
-        message: "Reason is required"
+        message: "region is required"
       });
     }
 
-    const categories = await Category.find({ reason });
+    const categories = await Category.find({ region });
 
     res.status(200).json({
       status: 200,
