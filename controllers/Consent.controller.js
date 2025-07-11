@@ -1,5 +1,5 @@
 const Consent = require('../models/consent.model');
-const { validateConsent } = require('../validations/consent.validator');
+const { validateConsent,validateConsentUpdate } = require('../validations/consent.validator');
 
 // Create
 exports.createConsent = async (req, res) => {
@@ -55,8 +55,8 @@ exports.getAllConsents = async (req, res) => {
 // Get by ID
 exports.getConsentById = async (req, res) => {
   try {
-    const Consent = await Consent.findById(req.params.id).populate('category_id');
-    if (!Consent)
+    const consent = await Consent.findById(req.params.id).populate('category_id', 'category');
+    if (!consent)
       return res.status(404).json({
         status: 404,
         success: false,
@@ -68,9 +68,10 @@ exports.getConsentById = async (req, res) => {
       status: 200,
       success: true,
       message: 'Consent fetched successfully',
-      data: Consent,
+      data: consent,
     });
   } catch (err) {
+    console.error('Error fetching consent by ID:', err); // optional: add logging
     res.status(500).json({
       status: 500,
       success: false,
@@ -83,7 +84,7 @@ exports.getConsentById = async (req, res) => {
 // Update
 exports.updateConsent = async (req, res) => {
   try {
-    const { error } = validateConsent.validate(req.body);
+    const { error } = validateConsentUpdate.validate(req.body);
     if (error)
       return res.status(400).json({
         status: 400,
@@ -92,7 +93,10 @@ exports.updateConsent = async (req, res) => {
         data: null,
       });
 
-    const updated = await Consent.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    const updated = await Consent.findByIdAndUpdate(req.params.id, req.body, {
+      new: true,
+    });
+
     if (!updated)
       return res.status(404).json({
         status: 404,
