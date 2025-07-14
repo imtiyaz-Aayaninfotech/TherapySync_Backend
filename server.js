@@ -25,6 +25,7 @@ const Consent = require('./routes/consent.routes');
 const therapyScheduleRoutes = require("./routes/therapySchedule.routes");
 const payment = require("./routes/Payment.routes");
 const agreementRoutes = require("./routes/Agreement.routes");
+const DoctorInfo = require("./routes/DoctorInfo.routes");
 
 app.use(express.json());
 app.use("/api/admin", adminRoutes);
@@ -35,6 +36,7 @@ app.use('/api/Consent', Consent);
 app.use("/api/therapy-schedule", therapyScheduleRoutes);
 app.use("/api/payment", payment);
 app.use("/api/agreement", agreementRoutes);
+app.use("/api/DoctorInfo", DoctorInfo);
 
 
 app.get("/", (req, res) => {
