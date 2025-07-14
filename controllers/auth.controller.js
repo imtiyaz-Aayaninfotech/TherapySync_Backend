@@ -29,27 +29,27 @@ exports.register = async (req, res) => {
         return res.status(400).json({ message: "Email already registered." });
       }
 
-      // 👉 Not verified, check if OTP expired
-      if (!existingUser.otp || existingUser.otp.expiresAt < new Date()) {
-        // Generate new OTP and update
-        existingUser.otp = { code: otp, expiresAt: otpExpiry };
-        await existingUser.save();
-
-        // await sendOtpEmail(email, otp, "Resend OTP");
-
-        return res.status(200).json({
-          message: "OTP expired. New OTP sent to your email.",
+      // ❗ Enforce 5-minute gap between OTP sends
+      if (existingUser.otp && existingUser.otp.expiresAt > new Date()) {
+        const waitMs = new Date(existingUser.otp.expiresAt).getTime() - Date.now();
+        const waitSec = Math.ceil(waitMs / 1000);
+        return res.status(429).json({
+          message: `Please wait ${waitSec} seconds before requesting a new OTP.`,
         });
       }
 
-      // 👉 Not expired but already registered (no need to register again)
-      return res.status(400).json({
-        message:
-          "Email already registered but not verified. Please check your email for OTP.",
+      // OTP expired or not sent before
+      existingUser.otp = { code: otp, expiresAt: otpExpiry };
+      await existingUser.save();
+
+      // await sendOtpEmail(email, otp, "Resend OTP");
+
+      return res.status(200).json({
+        message: "OTP expired or not found. New OTP sent to your email.",
       });
     }
 
-    // ⬆️ Upload image to S3 if provided
+    // ✅ CASE 2: New user registration
     let imageUrl = '';
     if (req.file) {
       imageUrl = await uploadSingleImage(req.file);
@@ -253,8 +253,17 @@ exports.forgotPassword = async (req, res) => {
         .json({ message: "User not found or not verified" });
     }
 
+    // ❗ Enforce 5-minute wait
+    if (user.otp && user.otp.expiresAt > new Date()) {
+      const waitMs = new Date(user.otp.expiresAt).getTime() - Date.now();
+      const waitSec = Math.ceil(waitMs / 1000);
+      return res.status(429).json({
+        message: `Please wait ${waitSec} seconds before requesting a new OTP.`,
+      });
+    }
+
     const otp = generateOTP();
-    const otpExpiry = new Date(Date.now() + 5 * 60 * 1000); // 5 min
+    const otpExpiry = new Date(Date.now() + 5 * 60 * 1000);
 
     user.otp = { code: otp, expiresAt: otpExpiry };
     await user.save();

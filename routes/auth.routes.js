@@ -11,8 +11,11 @@ const {
   resetPassword,
 } = require("../controllers/auth.controller");
 const upload = require('../middlewares/multer.middleware');
+const {
+  validateRegisterUser,
+} = require('../validations/user.validator');
 
-router.post("/register",upload.single('image'),register);
+router.post("/register",upload.single('image'),validateRegisterUser,register);
 router.post("/verify-otp", verifyOtp);
 router.post("/login", login);
 router.post("/refresh-token", refreshAccessToken);
