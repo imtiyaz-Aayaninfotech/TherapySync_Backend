@@ -23,6 +23,8 @@ const userRoutes = require('./routes/user.routes');
 const Category = require('./routes/category.routes');
 const Consent = require('./routes/consent.routes');
 const therapyScheduleRoutes = require("./routes/therapySchedule.routes");
+const payment = require("./routes/Payment.routes");
+
 app.use(express.json());
 app.use("/api/admin", adminRoutes);
 app.use("/api/auth", authRoutes);
@@ -30,6 +32,8 @@ app.use('/api/users', userRoutes);
 app.use('/api/Category', Category);
 app.use('/api/Consent', Consent);
 app.use("/api/therapy-schedule", therapyScheduleRoutes);
+app.use("/api/payment", payment);
+
 
 app.get("/", (req, res) => {
   res.send("Welcome to TherapySync Backend API");
