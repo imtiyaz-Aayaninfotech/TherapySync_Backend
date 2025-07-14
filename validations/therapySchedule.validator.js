@@ -13,4 +13,5 @@ exports.scheduleValidator = Joi.object({
   sessions: Joi.array().items(sessionSchema).required(),
   price: Joi.number().required(),
   notes: Joi.string().optional(),
+  region: Joi.string().valid("Berlin", "Thessaloniki").required(),
 });

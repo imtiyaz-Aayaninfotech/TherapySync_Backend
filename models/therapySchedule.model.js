@@ -1,19 +1,22 @@
 const mongoose = require("mongoose");
 
-const SessionSchema = new mongoose.Schema({
-  date: {
-    type: Date,
-    required: true,
+const SessionSchema = new mongoose.Schema(
+  {
+    date: {
+      type: Date,
+      required: true,
+    },
+    start: {
+      type: String,
+      required: true,
+    },
+    end: {
+      type: String,
+      required: true,
+    },
   },
-  start: {
-    type: String,
-    required: true,
-  },
-  end: {
-    type: String,
-    required: true,
-  },
-}, { _id: false }); // Optional: disables _id for nested docs
+  { _id: false }
+); // Optional: disables _id for nested docs
 
 const TherapyScheduleSchema = new mongoose.Schema(
   {
@@ -37,7 +40,9 @@ const TherapyScheduleSchema = new mongoose.Schema(
       validate: {
         validator: function (val) {
           // If package, there must be more than 1 session
-          return this.sessionPlan === "single" ? val.length === 1 : val.length > 1;
+          return this.sessionPlan === "single"
+            ? val.length === 1
+            : val.length > 1;
         },
         message: "Invalid number of sessions for selected session plan",
       },
@@ -55,6 +60,16 @@ const TherapyScheduleSchema = new mongoose.Schema(
     notes: {
       type: String,
       default: "",
+    },
+    region: {
+      type: String,
+      enum: ["Berlin", "Thessaloniki"],
+      required: true,
+      trim: true,
+    },
+    isPaid: {
+      type: Boolean,
+      default: false,
     },
   },
   {

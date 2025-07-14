@@ -24,12 +24,12 @@ const Category = require('./routes/category.routes');
 const Consent = require('./routes/consent.routes');
 const therapyScheduleRoutes = require("./routes/therapySchedule.routes");
 app.use(express.json());
-app.use("/api/therapy-schedule", therapyScheduleRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/auth", authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/Category', Category);
 app.use('/api/Consent', Consent);
+app.use("/api/therapy-schedule", therapyScheduleRoutes);
 
 app.get("/", (req, res) => {
   res.send("Welcome to TherapySync Backend API");
