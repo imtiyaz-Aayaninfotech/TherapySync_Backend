@@ -44,7 +44,7 @@ app.use("/api/coaching-enquiry", CoachingEnquiry);
 
 
 app.get("/", (req, res) => {
-  res.send("Welcome to TherapySync Backend API");
+  res.send("Welcome to TherapySync Backend API ip (52.20.55.193)");
 });
 
 app.listen(PORT, () => {
