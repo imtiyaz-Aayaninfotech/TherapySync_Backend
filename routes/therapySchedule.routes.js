@@ -10,6 +10,7 @@ router.get("/", controller.getAllSchedules);
 router.get("/:id", controller.getScheduleById);
 router.patch("/:id/status", controller.updateApprovalStatus);
 router.delete("/:id", controller.deleteSchedule);
+router.patch("/:id/reschedule", controller.rescheduleSession);
 
 
 module.exports = router;
