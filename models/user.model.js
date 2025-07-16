@@ -53,6 +53,11 @@ const userSchema = new mongoose.Schema({
     required: true,
     trim: true,
   },
+  language: {
+    type: String,
+    enum: ['English', 'German'],
+    default: 'English',
+  },
 }, { timestamps: true });
 
 module.exports = mongoose.model('User', userSchema);

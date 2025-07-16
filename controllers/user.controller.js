@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const User = require('../models/user.model');
 
 /*
@@ -102,5 +103,47 @@ exports.deleteUser = async (req, res) => {
   } catch (error) {
     console.error('Delete User Error:', error);
     res.status(500).json({ message: 'Server error' });
+  }
+};
+
+exports.getUserById = async (req, res) => {
+  try {
+    const userId = req.params.id;
+
+    // Validate MongoDB ObjectId
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      return res.status(400).json({
+        status: 400,
+        success: false,
+        message: "Invalid user ID",
+        data: [],
+      });
+    }
+
+    const user = await User.findById(userId).select('-password -refreshToken -otp');
+
+    if (!user) {
+      return res.status(404).json({
+        status: 404,
+        success: false,
+        message: "User not found",
+        data: [],
+      });
+    }
+
+    return res.status(200).json({
+      status: 200,
+      success: true,
+      message: "User fetched successfully",
+      data: [user],
+    });
+  } catch (error) {
+    console.error("Error in getUserById:", error);
+    return res.status(500).json({
+      status: 500,
+      success: false,
+      message: "Internal Server Error",
+      data: [],
+    });
   }
 };
