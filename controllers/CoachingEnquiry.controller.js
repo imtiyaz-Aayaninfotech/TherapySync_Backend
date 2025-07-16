@@ -7,14 +7,14 @@ exports.submitCoachingEnquiry = async (req, res) => {
     const { category_id, name, email, phoneNumber, gender, dateOfBirth } = req.body;
 
     const category = await Category.findById(category_id);
-    // if (!category || category.category !== 'Executive Coaching') {
-    //   return res.status(400).json({
-    //     status: 400,
-    //     success: false,
-    //     message: "Selected category is not 'Executive Coaching'",
-    //     data: []
-    //   });
-    // }
+    if (!category || category.category !== 'Executive Coaching') {
+      return res.status(400).json({
+        status: 400,
+        success: false,
+        message: "Selected category is not 'Executive Coaching'",
+        data: []
+      });
+    }
 
     const enquiry = new CoachingEnquiry({
       category_id,
