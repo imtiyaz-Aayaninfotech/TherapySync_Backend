@@ -103,6 +103,40 @@ exports.updateApprovalStatus = async (req, res) => {
   }
 };
 
+exports.updateTherapySchedule = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const updatedSchedule = await TherapySchedule.findByIdAndUpdate(
+      id,
+      req.body,
+      { new: true }
+    );
+
+    if (!updatedSchedule) {
+      return res.status(404).json({
+        status: 404,
+        success: false,
+        message: "Therapy schedule not found",
+        data: [],
+      });
+    }
+
+    res.status(200).json({
+      status: 200,
+      success: true,
+      message: "Therapy schedule updated successfully",
+      data: updatedSchedule,
+    });
+  } catch (error) {
+    res.status(400).json({
+      status: 400,
+      success: false,
+      message: error.message,
+      data: [],
+    });
+  }
+};
 
 exports.deleteSchedule = async (req, res) => {
   try {
@@ -174,8 +208,6 @@ exports.rescheduleSession = async (req, res) => {
     });
   }
 };
-
-
 
 exports.getAvailableSlots = async (req, res) => {
   try {
