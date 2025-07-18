@@ -27,7 +27,7 @@ const payment = require("./routes/Payment.routes");
 const agreementRoutes = require("./routes/Agreement.routes");
 const DoctorInfo = require("./routes/DoctorInfo.routes");
 const CoachingEnquiry = require("./routes/CoachingEnquiry.routes");
-
+const helpSupportRoutes = require("./routes/helpSupport.routes");
 
 app.use(express.json());
 app.use("/api/admin", adminRoutes);
@@ -40,6 +40,7 @@ app.use("/api/payment", payment);
 app.use("/api/agreement", agreementRoutes);
 app.use("/api/DoctorInfo", DoctorInfo);
 app.use("/api/coaching-enquiry", CoachingEnquiry);
+app.use("/api/help-support", helpSupportRoutes);
 
 
 
