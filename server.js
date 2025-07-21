@@ -45,7 +45,7 @@ app.use("/api/help-support", helpSupportRoutes);
 
 
 app.get("/", (req, res) => {
-  res.send("Welcome to TherapySync Backend API ip (52.20.55.193)");
+  res.send("Welcome to TherapySync Backend API ip (98.82.228.18)");
 });              
 
 app.listen(PORT, () => {
