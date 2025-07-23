@@ -11,7 +11,7 @@ const secretsManagerClient = new SecretsManagerClient({
 const getAwsCredentials = async () => {
   try {
     const command = new GetSecretValueCommand({
-      SecretId: process.env.AWS_SECRET_NAME || 'aws-secret',
+      SecretId: process.env.AWS_SECRET_NAME || 'therapy-Sync',
     });
     const data = await secretsManagerClient.send(command);
 
