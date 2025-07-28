@@ -1,5 +1,5 @@
 const CoachingEnquiry = require('../models/CoachingEnquiry.model');
-const Category = require('../models/CoachingEnquiry.model');
+const Category = require('../models/category.model');
 
 // Submit Coaching Enquiry
 exports.submitCoachingEnquiry = async (req, res) => {
