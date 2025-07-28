@@ -1,40 +1,38 @@
+const mongoose = require("mongoose");
 const HelpSupport = require("../models/helpSupport.model");
-const { helpSupportSchema } = require("../validations/helpSupport.validator");
+const { helpSupportSchema, helpSupportUpdateSchema } = require("../validations/helpSupport.validator");
+
 
 // Create HelpSupport
 exports.createHelpSupport = async (req, res) => {
   try {
     const { error } = helpSupportSchema.validate(req.body);
-    if (error)
-      return res
-        .status(400)
-        .json({
-          status: 400,
-          success: false,
-          message: error.details[0].message,
-          data: [],
-        });
+    if (error) {
+      return res.status(400).json({
+        status: 400,
+        success: false,
+        message: error.details[0].message,
+        data: [],
+      });
+    }
 
     const helpSupport = new HelpSupport(req.body);
     await helpSupport.save();
 
-    res
-      .status(200)
-      .json({
-        status: 200,
-        success: true,
-        message: "Help support entry created successfully",
-        data: [helpSupport],
-      });
+    return res.status(200).json({
+      status: 200,
+      success: true,
+      message: "Help support entry created successfully",
+      data: [helpSupport],
+    });
   } catch (err) {
-    res
-      .status(500)
-      .json({
-        status: 500,
-        success: false,
-        message: "Internal server error",
-        data: [],
-      });
+    console.error("Create HelpSupport error:", err);
+    return res.status(500).json({
+      status: 500,
+      success: false,
+      message: "Internal server error",
+      data: [],
+    });
   }
 };
 
@@ -115,47 +113,60 @@ exports.getHelpSupportById = async (req, res) => {
 exports.updateHelpSupport = async (req, res) => {
   try {
     const { id } = req.params;
+
+    // Check if ObjectId is valid
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({
+        status: 400,
+        success: false,
+        message: "Invalid ID format",
+        data: [],
+      });
+    }
+
+    // Validate incoming fields
     const { error } = helpSupportUpdateSchema.validate(req.body);
-    if (error)
-      return res
-        .status(400)
-        .json({
-          status: 400,
-          success: false,
-          message: error.details[0].message,
-          data: [],
-        });
+    if (error) {
+      return res.status(400).json({
+        status: 400,
+        success: false,
+        message: error.details[0].message,
+        data: [],
+      });
+    }
+
+    // Log for debugging
+    console.log("Updating ID:", id);
+    console.log("Update Payload:", req.body);
 
     const updated = await HelpSupport.findByIdAndUpdate(id, req.body, {
       new: true,
+      runValidators: true,
     });
-    if (!updated)
-      return res
-        .status(404)
-        .json({
-          status: 404,
-          success: false,
-          message: "Help support entry not found",
-          data: [],
-        });
 
-    res
-      .status(200)
-      .json({
-        status: 200,
-        success: true,
-        message: "Help support updated successfully",
-        data: [updated],
-      });
-  } catch (err) {
-    res
-      .status(500)
-      .json({
-        status: 500,
+    if (!updated) {
+      return res.status(404).json({
+        status: 404,
         success: false,
-        message: "Internal server error",
+        message: "Help support entry not found",
         data: [],
       });
+    }
+
+    return res.status(200).json({
+      status: 200,
+      success: true,
+      message: "Help support updated successfully",
+      data: [updated],
+    });
+  } catch (err) {
+    console.error("Update Help Support error:", err);
+    return res.status(500).json({
+      status: 500,
+      success: false,
+      message: "Internal server error",
+      data: [],
+    });
   }
 };
 
@@ -199,48 +210,46 @@ exports.updateHelpSupportStatus = async (req, res) => {
   try {
     const { id } = req.params;
     const { status } = req.body;
+
     const validStatuses = ["pending", "in_progress", "resolved"];
-    if (!validStatuses.includes(status))
-      return res
-        .status(400)
-        .json({
-          status: 400,
-          success: false,
-          message: "Invalid status value",
-          data: [],
-        });
+    if (!validStatuses.includes(status)) {
+      return res.status(400).json({
+        status: 400,
+        success: false,
+        message: "Invalid status value",
+        data: [],
+      });
+    }
 
     const updated = await HelpSupport.findByIdAndUpdate(
       id,
       { status },
       { new: true }
     );
-    if (!updated)
-      return res
-        .status(404)
-        .json({
-          status: 404,
-          success: false,
-          message: "Help support entry not found",
-          data: [],
-        });
 
-    res
-      .status(200)
-      .json({
-        status: 200,
-        success: true,
-        message: "Consent updated successfully",
-        data: [updated],
-      });
-  } catch (err) {
-    res
-      .status(500)
-      .json({
-        status: 500,
+    if (!updated) {
+      return res.status(404).json({
+        status: 404,
         success: false,
-        message: "Internal server error",
+        message: "Help support entry not found",
         data: [],
       });
+    }
+
+    return res.status(200).json({
+      status: 200,
+      success: true,
+      message: "Status updated successfully",
+      data: [updated],
+    });
+  } catch (err) {
+    console.error("Update Help Support Status error:", err);
+    return res.status(500).json({
+      status: 500,
+      success: false,
+      message: "Internal server error",
+      data: [],
+    });
   }
 };
+
