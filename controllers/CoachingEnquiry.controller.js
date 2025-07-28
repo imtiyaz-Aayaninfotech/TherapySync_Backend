@@ -4,7 +4,7 @@ const Category = require('../models/CoachingEnquiry.model');
 // Submit Coaching Enquiry
 exports.submitCoachingEnquiry = async (req, res) => {
   try {
-    const { category_id, name, email, phoneNumber, gender, dateOfBirth } = req.body;
+    const { category_id, name, email, phoneNumber, gender, organisation } = req.body;
 
     const category = await Category.findById(category_id);
     if (!category || category.category !== 'Executive Coaching') {
@@ -22,7 +22,7 @@ exports.submitCoachingEnquiry = async (req, res) => {
       email,
       phoneNumber,
       gender,
-      dateOfBirth
+      organisation
     });
 
     await enquiry.save();
