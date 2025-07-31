@@ -28,6 +28,8 @@ const agreementRoutes = require("./routes/Agreement.routes");
 const DoctorInfo = require("./routes/DoctorInfo.routes");
 const CoachingEnquiry = require("./routes/CoachingEnquiry.routes");
 const helpSupportRoutes = require("./routes/helpSupport.routes");
+const questionnaireRoutes = require("./routes/questionnaire.routes");
+const userResponseRoutes = require("./routes/userResponse.routes");
 
 app.use(express.json());
 app.use("/api/admin", adminRoutes);
@@ -41,6 +43,8 @@ app.use("/api/agreement", agreementRoutes);
 app.use("/api/DoctorInfo", DoctorInfo);
 app.use("/api/coaching-enquiry", CoachingEnquiry);
 app.use("/api/help-support", helpSupportRoutes);
+app.use("/api/questionnaire", questionnaireRoutes);
+app.use("/api/user-response", userResponseRoutes);
 
 
 
