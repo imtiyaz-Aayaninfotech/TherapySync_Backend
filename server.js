@@ -30,7 +30,7 @@ const CoachingEnquiry = require("./routes/CoachingEnquiry.routes");
 const helpSupportRoutes = require("./routes/helpSupport.routes");
 const questionnaireRoutes = require("./routes/questionnaire.routes");
 const userResponseRoutes = require("./routes/userResponse.routes");
-const biographicalRoutes = require("./routes/biographicalRoutes");
+// const biographicalRoutes = require("./routes/biographicalRoutes");
 
 app.use(express.json());
 app.use("/api/admin", adminRoutes);
@@ -46,7 +46,7 @@ app.use("/api/coaching-enquiry", CoachingEnquiry);
 app.use("/api/help-support", helpSupportRoutes);
 app.use("/api/questionnaire", questionnaireRoutes);
 app.use("/api/user-response", userResponseRoutes);
-app.use("/api/bioQA", biographicalRoutes);
+// app.use("/api/bioQA", biographicalRoutes);
 
 
 
