@@ -1,8 +1,9 @@
-import Biographical from "../models/BiographicalQuestionnaire.js";
-import Response from "../models/BiographicalResponse.js";
-import User from "../models/user.model.js";
+const Biographical = require("../models/BiographicalQuestionnaire");
+const Response = require("../models/BiographicalResponse");
+const User = require("../models/user.model");
 
-export const createBiographical = async (req, res) => {
+// Create Biographical Questionnaire
+exports.createBiographical = async (req, res) => {
   try {
     const doc = await Biographical.create(req.body);
     res.status(200).json({
@@ -21,7 +22,8 @@ export const createBiographical = async (req, res) => {
   }
 };
 
-export const getAllBiographical = async (req, res) => {
+// Get All Biographical Questionnaires
+exports.getAllBiographical = async (req, res) => {
   try {
     const docs = await Biographical.find();
     res.status(200).json({
@@ -40,7 +42,8 @@ export const getAllBiographical = async (req, res) => {
   }
 };
 
-export const deleteBiographical = async (req, res) => {
+// Delete Biographical Questionnaire
+exports.deleteBiographical = async (req, res) => {
   try {
     await Biographical.findByIdAndDelete(req.params.id);
     res.status(200).json({
@@ -59,7 +62,8 @@ export const deleteBiographical = async (req, res) => {
   }
 };
 
-export const updateBiographical = async (req, res) => {
+// Update Biographical Questionnaire
+exports.updateBiographical = async (req, res) => {
   try {
     const { id } = req.params;
     const { name, instructions, questions } = req.body;
@@ -70,7 +74,7 @@ export const updateBiographical = async (req, res) => {
         name,
         instructions,
         questions,
-        updatedAt: new Date()
+        updatedAt: new Date(),
       },
       { new: true, runValidators: true }
     );
@@ -80,7 +84,7 @@ export const updateBiographical = async (req, res) => {
         status: 404,
         success: false,
         message: "Biographical questionnaire not found",
-        data: []
+        data: [],
       });
     }
 
@@ -88,21 +92,20 @@ export const updateBiographical = async (req, res) => {
       status: 200,
       success: true,
       message: "Biographical questionnaire updated successfully",
-      data: updatedDoc
+      data: updatedDoc,
     });
-
   } catch (err) {
     res.status(500).json({
       status: 500,
       success: false,
       message: err.message,
-      data: []
+      data: [],
     });
   }
 };
 
-// submitBiographicalResponse
-export const submitBiographicalResponse = async (req, res) => {
+// Submit Biographical Response
+exports.submitBiographicalResponse = async (req, res) => {
   try {
     const response = await Response.create(req.body);
     res.status(200).json({
@@ -122,7 +125,7 @@ export const submitBiographicalResponse = async (req, res) => {
 };
 
 // Update Biographical Response
-export const updateBiographicalResponse = async (req, res) => {
+exports.updateBiographicalResponse = async (req, res) => {
   try {
     const { id } = req.params;
     const updated = await Response.findByIdAndUpdate(id, req.body, {
@@ -155,7 +158,7 @@ export const updateBiographicalResponse = async (req, res) => {
 };
 
 // Delete Biographical Response
-export const deleteBiographicalResponse = async (req, res) => {
+exports.deleteBiographicalResponse = async (req, res) => {
   try {
     const { id } = req.params;
     const deleted = await Response.findByIdAndDelete(id);
@@ -185,8 +188,8 @@ export const deleteBiographicalResponse = async (req, res) => {
   }
 };
 
-// Get All Biographical Responses with filters, search, and pagination
-export const getAllBiographicalResponses = async (req, res) => {
+// Get All Biographical Responses with Filters, Search, Pagination
+exports.getAllBiographicalResponses = async (req, res) => {
   try {
     const { page = 1, limit = 10, search = "", language } = req.query;
     const skip = (page - 1) * limit;
@@ -237,4 +240,3 @@ export const getAllBiographicalResponses = async (req, res) => {
     });
   }
 };
-

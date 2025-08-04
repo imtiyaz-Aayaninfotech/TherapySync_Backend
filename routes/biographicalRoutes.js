@@ -12,11 +12,13 @@ const {
 
 const router = express.Router();
 
+// Questionnaire routes
 router.post("/biographical", createBiographical);
 router.get("/biographical", getAllBiographical);
-router.delete("/biographical/:id", deleteBiographical);
 router.put("/biographical/:id", updateBiographical);
-// response
+router.delete("/biographical/:id", deleteBiographical);
+
+// Response routes
 router.post("/biographical-response", submitBiographicalResponse);
 router.put("/biographical-response/:id", updateBiographicalResponse);
 router.delete("/biographical-response/:id", deleteBiographicalResponse);
