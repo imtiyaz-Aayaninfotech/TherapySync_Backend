@@ -11,4 +11,3 @@ router.put('/:id', ctrl.updateUserResponse);
 router.delete('/:id', ctrl.deleteUserResponse);
 
 module.exports = router;
-         
