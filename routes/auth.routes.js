@@ -10,6 +10,7 @@ const {
   verifyForgotOtp,
   resetPassword,
   changePassword,
+  updateProfile,
 } = require("../controllers/auth.controller");
 const upload = require('../middlewares/multer.middleware');
 const {
@@ -26,5 +27,6 @@ router.post('/forgot-password', forgotPassword);
 router.post('/verify-forgot-otp', verifyForgotOtp);
 router.post('/reset-password', resetPassword);
 router.post("/change-password",verifyAuth,changePassword);
+router.put("/profile", verifyAuth, upload.single('image'), updateProfile);
 
 module.exports = router;

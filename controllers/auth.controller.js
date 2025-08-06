@@ -385,3 +385,47 @@ exports.changePassword = async (req, res) => {
     });
   }
 };
+
+// update Profile
+exports.updateProfile = async (req, res) => {
+  try {
+    const userId = req.user?.id;
+
+    if (!userId) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+
+    const updateFields = {};
+
+    const { name, email, phoneNumber, gender, dateOfBirth, region, language } = req.body;
+
+    if (name) updateFields.name = name;
+    if (email) updateFields.email = email;
+    if (phoneNumber) updateFields.phoneNumber = phoneNumber;
+    if (gender) updateFields.gender = gender;
+    if (dateOfBirth) updateFields.dateOfBirth = dateOfBirth;
+    if (region) updateFields.region = region;
+    if (language) updateFields.language = language;
+
+    if (req.file) {
+      const imageUrl = await uploadSingleImage(req.file);
+      updateFields.image = imageUrl;
+    }
+
+    const updatedUser = await User.findByIdAndUpdate(
+      userId,
+      { $set: updateFields },
+      { new: true }
+    );
+
+    res.status(200).json({
+      success: true,
+      message: 'Profile updated successfully',
+      data: updatedUser,
+    });
+
+  } catch (err) {
+    console.error('Update Profile Error:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+};

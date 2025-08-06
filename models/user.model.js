@@ -23,17 +23,17 @@ const userSchema = new mongoose.Schema({
   },
   phoneNumber: {
     type: String,
-    required: true,
     trim: true,
+    default: '',
   },
   gender: {
     type: String,
+    default: undefined,
     enum: ['Male', 'Female', 'Other'],
-    required: true,
   },
   dateOfBirth: {
     type: Date,
-    required: true,
+    default: '',
   },
   otp: {
     code: String,

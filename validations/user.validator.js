@@ -60,13 +60,13 @@ exports.validateRegisterUser = (req, res, next) => {
       }),
     phoneNumber: Joi.string()
       .pattern(/^[0-9]{7,15}$/)
-      .required()
+      .optional()
       .messages({
         'string.pattern.base': 'Phone number must be 7 to 15 digits.',
         'any.required': 'Phone number is required.',
       }),
-    gender: Joi.string().valid('Male', 'Female', 'Other').required(),
-    dateOfBirth: Joi.date().required(),
+    gender: Joi.string().valid('Male', 'Female', 'Other').optional(),
+    dateOfBirth: Joi.date().optional(),
     region: Joi.string()
       .valid('Berlin', 'Thessaloniki', 'Athens', 'Hamburg', 'Other')
       .required(),
