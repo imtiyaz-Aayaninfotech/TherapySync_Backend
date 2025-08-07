@@ -31,7 +31,7 @@ const helpSupportRoutes = require("./routes/helpSupport.routes");
 const questionnaireRoutes = require("./routes/questionnaire.routes");
 const userResponseRoutes = require("./routes/userResponse.routes");
 const biographicalRoutes = require("./routes/biographicalRoutes");
-const websiteEnquiryRoutes = require('./routes/websiteEnquiry.routes');
+// const websiteEnquiryRoutes = require('./routes/websiteEnquiry.routes');
 
 app.use(express.json());
 app.use("/api/admin", adminRoutes);
@@ -48,7 +48,7 @@ app.use("/api/help-support", helpSupportRoutes);
 app.use("/api/questionnaire", questionnaireRoutes);
 app.use("/api/user-response", userResponseRoutes);
 app.use("/api/bioQA", biographicalRoutes);
-app.use('/api/website-enquiries', websiteEnquiryRoutes);
+// app.use('/api/website-enquiries', websiteEnquiryRoutes);
 
 
 
