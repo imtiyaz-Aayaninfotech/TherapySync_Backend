@@ -199,6 +199,7 @@ exports.getAllBiographicalResponses = async (req, res) => {
     if (language) query.language = language;
 
     if (search) {
+      // Search user name or email for the given term
       const users = await User.find({
         $or: [
           { name: { $regex: search, $options: "i" } },
@@ -216,15 +217,59 @@ exports.getAllBiographicalResponses = async (req, res) => {
       .skip(skip)
       .limit(Number(limit))
       .sort({ createdAt: -1 })
-      .populate("userId", "name email")
+      .populate("userId", "name email region") // now includes region
       .populate("questionnaireId")
       .lean();
 
+    // ----------- FORMATTING STARTS HERE ----------------
+    const formatted = responses.map((resp) => {
+      const user = resp.userId || {};
+      const questionnaire = resp.questionnaireId || {};
+      // Default to 'en' if language missing
+      const lang = resp.language || "en";
+
+      return {
+        id: resp._id,
+        submittedAt: resp.createdAt,
+        user: {
+          id: user?._id,
+          name: user?.name,
+          email: user?.email,
+          region: user?.region,
+        },
+        questionnaire: {
+          id: questionnaire?._id,
+          name:
+            questionnaire?.name?.get?.(lang) ||
+            questionnaire?.name?.[lang] ||
+            questionnaire?.name,
+        },
+        answers: (resp.answers || []).map((ans) => {
+          const q = (questionnaire?.questions || []).find(
+            (q) => q.id === ans.questionId
+          );
+
+          return {
+            question: q
+              ? {
+                  id: q.id,
+                  text: q.text?.get?.(lang) || q.text?.[lang] || q.text,
+                  options:
+                    q.options?.get?.(lang) || q.options?.[lang] || q.options,
+                }
+              : null,
+            response: ans.response,
+          };
+        }),
+      };
+    });
+
+    // Send response
     res.status(200).json({
       status: 200,
       success: true,
       message: "Biographical responses fetched successfully",
-      data: responses,
+      data: formatted,
       pagination: {
         total,
         page: Number(page),
