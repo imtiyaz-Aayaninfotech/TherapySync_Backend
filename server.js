@@ -48,7 +48,7 @@ app.use("/api/help-support", helpSupportRoutes);
 app.use("/api/questionnaire", questionnaireRoutes);
 app.use("/api/user-response", userResponseRoutes);
 app.use("/api/bioQA", biographicalRoutes);
-app.use('/api/website-enquiries', websiteEnquiryRoutes);
+app.use('/api/webEnquiry', websiteEnquiryRoutes);
 
 
 

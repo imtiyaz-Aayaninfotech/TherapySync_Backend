@@ -11,7 +11,6 @@ const websiteEnquirySchema = new mongoose.Schema(
       type: String,
       required: true,
       trim: true,
-      lowercase: true,
     },
     phoneNumber: {
       type: String,
@@ -21,7 +20,7 @@ const websiteEnquirySchema = new mongoose.Schema(
     program: {
       type: String,
       required: true,
-      enum: ['Family Therapy', 'Executive Coaching', 'Individual Therapy'],
+     enum: ['family therapy', 'executive coaching', 'individual therapy'],
     },
     ipAddress: {
       type: String,
