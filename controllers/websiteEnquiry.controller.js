@@ -22,12 +22,12 @@ exports.createWebsiteEnquiry = async (req, res) => {
     }
 
     // Check if IP address already exists (optional, only if ip is passed)
-    if (ipAddress) {
-      const ipExists = await WebsiteEnquiry.findOne({ ipAddress });
-      if (ipExists) {
-        return res.status(400).json({ success: false, message: 'IP address already submitted an enquiry' });
-      }
-    }
+    // if (ipAddress) {
+    //   const ipExists = await WebsiteEnquiry.findOne({ ipAddress });
+    //   if (ipExists) {
+    //     return res.status(400).json({ success: false, message: 'IP address already submitted an enquiry' });
+    //   }
+    // }
 
     const newEnquiry = new WebsiteEnquiry({
       name,
@@ -81,12 +81,12 @@ exports.updateWebsiteEnquiry = async (req, res) => {
     }
 
     // If IP address is being updated, check uniqueness
-    if (updateData.ipAddress && updateData.ipAddress !== enquiry.ipAddress) {
-      const ipExists = await WebsiteEnquiry.findOne({ ipAddress: updateData.ipAddress });
-      if (ipExists) {
-        return res.status(400).json({ success: false, message: 'IP address already used' });
-      }
-    }
+    // if (updateData.ipAddress && updateData.ipAddress !== enquiry.ipAddress) {
+    //   const ipExists = await WebsiteEnquiry.findOne({ ipAddress: updateData.ipAddress });
+    //   if (ipExists) {
+    //     return res.status(400).json({ success: false, message: 'IP address already used' });
+    //   }
+    // }
 
     const updated = await WebsiteEnquiry.findByIdAndUpdate(id, updateData, { new: true });
     res.status(200).json({ success: true, message: 'Enquiry updated successfully', data: updated });
