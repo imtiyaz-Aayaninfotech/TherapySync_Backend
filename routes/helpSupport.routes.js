@@ -20,14 +20,4 @@ router.delete("/:id", helpSupportController.deleteHelpSupport);
 // Admin: Update status only
 router.patch("/status/:id", helpSupportController.updateHelpSupportStatus);
 
-// WebsiteEnquiry
-// POST /api/enquiry
-router.post("/enquiry", helpSupportController.createWebsiteEnquiry);
-
-// GET /api/enquiry
-router.get("/enquiry",helpSupportController.getAllWebsiteEnquiries);
-
-// DELETE /api/enquiry/:id
-router.delete("/enquiry/:id", helpSupportController.deleteWebsiteEnquiry);
-
 module.exports = router;
