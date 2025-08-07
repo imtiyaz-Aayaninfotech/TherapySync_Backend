@@ -31,7 +31,7 @@ const helpSupportRoutes = require("./routes/helpSupport.routes");
 const questionnaireRoutes = require("./routes/questionnaire.routes");
 const userResponseRoutes = require("./routes/userResponse.routes");
 const biographicalRoutes = require("./routes/biographicalRoutes");
-const websiteEnquiryRoutes = require("./routes/websiteEnquiry.routes");
+const websiteEnquiryRoutes = require("./routes/enquiry.routes");
 
 app.use(express.json());
 app.use("/api/admin", adminRoutes);

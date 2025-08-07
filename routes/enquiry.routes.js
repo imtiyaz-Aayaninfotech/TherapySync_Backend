@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const websiteEnquiryController = require('../controllers/websiteEnquiry.controller');
+const websiteEnquiryController = require('../controllers/enquiry.controller');
 
 // Route: /api/website-enquiries
 router.get('/', websiteEnquiryController.getAllWebsiteEnquiries);

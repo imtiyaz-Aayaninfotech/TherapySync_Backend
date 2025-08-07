@@ -1,4 +1,4 @@
-const WebsiteEnquiry = require('../models/websiteEnquiry.model');
+const WebsiteEnquiry = require('../models/enquiry.model');
 
 // GET: Get all website enquiries
 exports.getAllWebsiteEnquiries = async (req, res) => {
