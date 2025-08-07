@@ -24,7 +24,7 @@ router.post("/login", login);
 router.post("/refresh-token", refreshAccessToken);
 router.post("/logout", logout);
 router.post('/forgot-password', forgotPassword);
-router.post('/verify-forgot-otp', verifyForgotOtp);
+// router.post('/verify-forgot-otp', verifyForgotOtp);
 router.post('/reset-password', resetPassword);
 router.post("/change-password",verifyAuth,changePassword);
 router.put("/profile", verifyAuth, upload.single('image'), updateProfile);

@@ -278,25 +278,25 @@ exports.forgotPassword = async (req, res) => {
 };
 
 // Verify OTP for Password Reset
-exports.verifyForgotOtp = async (req, res) => {
-  try {
-    const { email, otp } = req.body;
+// exports.verifyForgotOtp = async (req, res) => {
+//   try {
+//     const { email, otp } = req.body;
 
-    const user = await User.findOne({ email });
-    if (!user || !user.otp || user.otp.code !== otp) {
-      return res.status(400).json({ message: "Invalid OTP" });
-    }
+//     const user = await User.findOne({ email });
+//     if (!user || !user.otp || user.otp.code !== otp) {
+//       return res.status(400).json({ message: "Invalid OTP" });
+//     }
 
-    if (user.otp.expiresAt < new Date()) {
-      return res.status(400).json({ message: "OTP expired" });
-    }
+//     if (user.otp.expiresAt < new Date()) {
+//       return res.status(400).json({ message: "OTP expired" });
+//     }
 
-    res.json({ message: "OTP verified. You can now reset your password." });
-  } catch (error) {
-    console.error("Verify OTP Error:", error);
-    res.status(500).json({ message: "Server error" });
-  }
-};
+//     res.json({ message: "OTP verified. You can now reset your password." });
+//   } catch (error) {
+//     console.error("Verify OTP Error:", error);
+//     res.status(500).json({ message: "Server error" });
+//   }
+// };
 
 // Reset Password
 exports.resetPassword = async (req, res) => {

@@ -1,6 +1,7 @@
 const mongoose = require("mongoose");
 const HelpSupport = require("../models/helpSupport.model");
 const { helpSupportSchema, helpSupportUpdateSchema } = require("../validations/helpSupport.validator");
+const WebsiteEnquiry = require("../models/WebsiteEnquiry.model");
 
 
 // Create HelpSupport
@@ -249,6 +250,84 @@ exports.updateHelpSupportStatus = async (req, res) => {
       success: false,
       message: "Internal server error",
       data: [],
+    });
+  }
+};
+
+// WebsiteEnquiry
+
+// POST - Create new enquiry
+exports.createWebsiteEnquiry = async (req, res) => {
+  try {
+    const { name, email, phoneNumber, program, ipAddress, status } = req.body;
+
+    const newEnquiry = new WebsiteEnquiry({
+      name,
+      email,
+      phoneNumber,
+      program,
+      ipAddress,
+      status,
+    });
+
+    await newEnquiry.save();
+
+    res.status(201).json({
+      success: true,
+      message: "Enquiry created successfully",
+      data: newEnquiry,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: "Failed to create enquiry",
+      error: error.message,
+    });
+  }
+};
+
+// GET - All enquiries
+exports.getAllWebsiteEnquiries = async (req, res) => {
+  try {
+    const enquiries = await WebsiteEnquiry.find().sort({ createdAt: -1 });
+
+    res.status(200).json({
+      success: true,
+      message: "Enquiries fetched successfully",
+      data: enquiries,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch enquiries",
+      error: error.message,
+    });
+  }
+};
+
+// DELETE - By ID
+exports.deleteWebsiteEnquiry = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const deleted = await WebsiteEnquiry.findByIdAndDelete(id);
+
+    if (!deleted) {
+      return res.status(404).json({
+        success: false,
+        message: "Enquiry not found",
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "Enquiry deleted successfully",
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: "Failed to delete enquiry",
+      error: error.message,
     });
   }
 };
