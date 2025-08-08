@@ -1,10 +1,51 @@
 const WebsiteEnquiry = require('../models/enquiry.model');
 
-// GET: Get all website enquiries
+// GET: Get all website enquiries with pagination and search
 exports.getAllWebsiteEnquiries = async (req, res) => {
   try {
-    const enquiries = await WebsiteEnquiry.find().sort({ createdAt: -1 });
-    res.status(200).json({ success: true, data: enquiries });
+    // Pagination parameters
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    // Search parameter
+    const search = req.query.search || '';
+
+    // Build search query if search term is provided
+    let searchQuery = {};
+    if (search) {
+      const searchRegex = new RegExp(search, 'i');
+      searchQuery = {
+        $or: [
+          { name: searchRegex },
+          { email: searchRegex },
+          { phoneNumber: searchRegex },
+          { program: searchRegex },
+          { status: searchRegex },
+        ],
+      };
+    }
+
+    // Pagination calculation
+    const skip = (page - 1) * limit;
+
+    // Get total count for pagination
+    const total = await WebsiteEnquiry.countDocuments(searchQuery);
+
+    // Fetch paginated enquiries
+    const enquiries = await WebsiteEnquiry.find(searchQuery)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit);
+
+    res.status(200).json({
+      success: true,
+      data: enquiries,
+      pagination: {
+        totalRecords: total,
+        totalPages: Math.ceil(total / limit),
+        currentPage: page,
+        pageSize: limit,
+      },
+    });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Failed to fetch enquiries', error: error.message });
   }
