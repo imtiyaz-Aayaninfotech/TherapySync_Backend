@@ -116,7 +116,7 @@ exports.getUserById = async (req, res) => {
         status: 400,
         success: false,
         message: "Invalid user ID",
-        data: [],
+        data: null,
       });
     }
 
@@ -127,7 +127,7 @@ exports.getUserById = async (req, res) => {
         status: 404,
         success: false,
         message: "User not found",
-        data: [],
+        data: null,
       });
     }
 
@@ -135,7 +135,7 @@ exports.getUserById = async (req, res) => {
       status: 200,
       success: true,
       message: "User fetched successfully",
-      data: [user],
+      data: user, // Removed the array
     });
   } catch (error) {
     console.error("Error in getUserById:", error);
@@ -143,7 +143,7 @@ exports.getUserById = async (req, res) => {
       status: 500,
       success: false,
       message: "Internal Server Error",
-      data: [],
+      data: null,
     });
   }
 };
