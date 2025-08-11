@@ -1,23 +1,87 @@
 const TherapySchedule = require("../models/therapySchedule.model");
 const moment = require("moment");
+const AdminSlot = require("../models/adminSlot.model");
+const generateSlots = require("../utils/slotGenerator");
 
 
+// CLIENT: Create Schedule + Book Slot in ONE API
 exports.createSchedule = async (req, res) => {
   try {
+    const { sessions } = req.body;
+
+    // 1. Validate sessions
+    if (!sessions || !sessions.length) {
+      return res.status(400).json({
+        message: "Sessions array is required and cannot be empty",
+      });
+    }
+
+    const firstSession = sessions[0];
+
+    if (!firstSession.date || !firstSession.start || !firstSession.end) {
+      return res.status(400).json({
+        message: "Each session requires date, start, and end time",
+      });
+    }
+
+    // 2. Normalize to UTC midnight
+    const bookingDateStr = moment(firstSession.date).format("YYYY-MM-DD");
+    const normalizedDate = new Date(bookingDateStr + "T00:00:00.000Z");
+    const nextDay = new Date(normalizedDate.getTime() + 24 * 60 * 60 * 1000);
+    const startSlot = firstSession.start;
+
+    // 3. Try exact match first, then date range match for flexibility
+    let adminSlot = await AdminSlot.findOne({ date: normalizedDate });
+
+    if (!adminSlot) {
+      // fallback for records stored with timezone offsets
+      adminSlot = await AdminSlot.findOne({
+        date: { $gte: normalizedDate, $lt: nextDay },
+      });
+    }
+
+    if (!adminSlot) {
+      return res.status(400).json({
+        message: `Admin has not set working hours for ${bookingDateStr}`,
+      });
+    }
+
+    // 4. Check if requested slot exists
+    const slot = adminSlot.slots.find((s) => s.start === startSlot);
+    if (!slot) {
+      return res
+        .status(400)
+        .json({ message: `Slot starting at ${startSlot} does not exist` });
+    }
+
+    // 5. Check if slot is available
+    if (!slot.isAvailable) {
+      return res.status(400).json({
+        message: `Slot starting at ${startSlot} is already booked`,
+      });
+    }
+
+    // 6. Create & save schedule
     const newSchedule = new TherapySchedule(req.body);
-    const saved = await newSchedule.save();
-    res.status(200).json({
+    const savedSchedule = await newSchedule.save();
+
+    // 7. Mark slot as booked and save
+    slot.isAvailable = false;
+    await adminSlot.save();
+
+    // 8. Response
+    return res.status(200).json({
       status: 200,
       success: true,
-      message: "Schedule created successfully",
-      data: saved,
+      message: "Schedule created and slot booked successfully",
+      data: savedSchedule,
     });
+
   } catch (err) {
-    res.status(400).json({
-      status: 400,
-      success: false,
-      message: err.message,
-      data: [],
+    console.error("Error in createSchedule:", err);
+    return res.status(500).json({
+      status: 500,
+      message: err.message || "An error occurred while creating the schedule",
     });
   }
 };
@@ -209,55 +273,105 @@ exports.rescheduleSession = async (req, res) => {
   }
 };
 
+// CLIENT: Get Available Slots Based on Admin Settings & Bookings
+
 exports.getAvailableSlots = async (req, res) => {
   try {
     const { date } = req.query;
 
+    // Validate YYYY-MM-DD format
     if (!date || !moment(date, "YYYY-MM-DD", true).isValid()) {
-      return res.status(400).json({ message: "Invalid or missing date" });
+      return res.status(400).json({ message: "Invalid date format (YYYY-MM-DD)" });
     }
 
-    const allSlots = [
-      "09:00 AM", "10:00 AM", "11:00 AM", "12:00 PM",
-      "02:00 PM", "03:00 PM", "04:00 PM", "05:00 PM"
-    ];
+    // 1. Always normalize to UTC midnight for exact match
+    const simpleDate = new Date(date + "T00:00:00.000Z");
 
-    const targetDate = new Date(date);
-    const nextDay = new Date(targetDate);
-    nextDay.setDate(targetDate.getDate() + 1);
+    // 2. Get admin's working hours for the specific date
+    const adminSlot = await AdminSlot.findOne({ date: simpleDate });
+    if (!adminSlot) {
+      return res.status(404).json({ message: "No working hours set for this date" });
+    }
 
+    // 3. Get all bookings for this date that are pending or approved
     const schedules = await TherapySchedule.find({
       sessions: {
         $elemMatch: {
           date: {
-            $gte: targetDate,
-            $lt: nextDay
+            $gte: simpleDate, // start of day UTC
+            $lt: new Date(simpleDate.getTime() + 24 * 60 * 60 * 1000) // next day UTC
           }
         }
       },
       isApproved: { $in: ["pending", "approved"] }
     });
 
+    // 4. Collect booked slots for the day
     const bookedSlots = [];
     schedules.forEach(schedule => {
       schedule.sessions.forEach(session => {
-        const sessionDate = new Date(session.date).toISOString().split("T")[0];
-        if (sessionDate === date) {
+        if (moment(session.date).format("YYYY-MM-DD") === date) {
           bookedSlots.push(session.start);
         }
       });
     });
 
-    const availableSlots = allSlots.filter(slot => !bookedSlots.includes(slot));
+    // 5. Merge bookings with admin slots to mark availability
+    const updatedSlots = adminSlot.slots.map(slot => ({
+      start: slot.start,
+      end: slot.end,
+      isAvailable: !bookedSlots.includes(slot.start)
+    }));
 
-    res.json({
+    // 6. Send response
+    return res.status(200).json({
       date,
-      availableSlots,
-      bookedSlots,
+      slots: updatedSlots
     });
 
   } catch (err) {
-    console.error("Slot Error:", err.message);
-    res.status(500).json({ message: "Server Error" });
+    console.error("getAvailableSlots error:", err);
+    return res.status(500).json({ message: err.message || "Server Error" });
+  }
+};
+
+// ADMIN: Set Working Hours & Generate Slots
+ 
+exports.setWorkingHours = async (req, res) => {
+  try {
+    const { date, startTime, endTime, slotDuration } = req.body;
+
+    // 1. Validate date format (YYYY-MM-DD)
+    if (!moment(date, "YYYY-MM-DD", true).isValid()) {
+      return res.status(400).json({ message: "Invalid date format (YYYY-MM-DD)" });
+    }
+
+    // 2. Make date always simple: store as pure UTC midnight
+    const simpleDate = new Date(date + "T00:00:00.000Z");
+
+    // 3. Generate slots (default to 60 minutes if not passed)
+    const slots = generateSlots(startTime, endTime, slotDuration || 60);
+
+    // 4. Save or update the working hours for that date
+    const updated = await AdminSlot.findOneAndUpdate(
+      { date: simpleDate },
+      {
+        date: simpleDate,
+        startTime,
+        endTime,
+        slotDuration: slotDuration || 60,
+        slots
+      },
+      { new: true, upsert: true }
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: "Working hours saved",
+      data: updated
+    });
+  } catch (err) {
+    console.error("setWorkingHours error:", err);
+    return res.status(500).json({ message: err.message || "Server Error" });
   }
 };
