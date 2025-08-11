@@ -46,22 +46,24 @@ exports.createSchedule = async (req, res) => {
       });
     }
 
-    // 4. Check if requested slot exists
-    const slot = adminSlot.slots.find((s) => s.start === startSlot);
+    const slot = adminSlot.slots.find(s => s.start === startSlot);
     if (!slot) {
-      return res
-        .status(400)
-        .json({ message: `Slot starting at ${startSlot} does not exist` });
+      return res.status(400).json({ message: `Slot starting at ${startSlot} does not exist` });
     }
 
-    // 5. Check if slot is available
+    // Check if the slot is occupied only by declined bookings
     if (!slot.isAvailable) {
-      return res.status(400).json({
-        message: `Slot starting at ${startSlot} is already booked`,
+      const existingBooking = await TherapySchedule.findOne({
+        "sessions.date": { $gte: normalizedDate, $lt: nextDay },
+        "sessions.start": startSlot,
+        isApproved: { $in: ["pending", "approved"] }, // declined excluded
       });
+
+      if (existingBooking) {
+        return res.status(400).json({ message: `Slot starting at ${startSlot} is already booked` });
+      }
     }
 
-    // 6. Create & save schedule
     const newSchedule = new TherapySchedule(req.body);
     const savedSchedule = await newSchedule.save();
 
@@ -317,15 +319,14 @@ exports.getAvailableSlots = async (req, res) => {
       sessions: {
         $elemMatch: {
           date: {
-            $gte: simpleDate, // start of day UTC
-            $lt: new Date(simpleDate.getTime() + 24 * 60 * 60 * 1000) // next day UTC
-          }
-        }
+            $gte: simpleDate,
+            $lt: new Date(simpleDate.getTime() + 24 * 60 * 60 * 1000),
+          },
+        },
       },
-      isApproved: { $in: ["pending", "approved"] }
+      isApproved: { $in: ["pending", "approved"] }, // declined not included
     });
 
-    // 4. Collect booked slots for the day
     const bookedSlots = [];
     schedules.forEach(schedule => {
       schedule.sessions.forEach(session => {
