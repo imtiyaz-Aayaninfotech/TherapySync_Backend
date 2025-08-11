@@ -144,17 +144,36 @@ exports.getScheduleById = async (req, res) => {
 
 exports.updateApprovalStatus = async (req, res) => {
   try {
-    const { status } = req.body;
+    const { status, reason } = req.body;
+
+    // Build update object
+    const updateData = { isApproved: status };
+
+    // If declined, store reason
+    if (status === "declined") {
+      if (!reason) {
+        return res.status(400).json({ message: "Reason is required when declining" });
+      }
+      updateData.declineReason = reason;
+    } else {
+      // Clear declineReason if approving or pending
+      updateData.declineReason = "";
+    }
+
     const updated = await TherapySchedule.findByIdAndUpdate(
       req.params.id,
-      { isApproved: status },
+      updateData,
       { new: true }
     );
+
+    if (!updated) {
+      return res.status(404).json({ message: "Schedule not found" });
+    }
 
     res.status(200).json({
       status: 200,
       success: true,
-      message: "Approval status updated",
+      message: `Approval status updated to ${status}`,
       data: updated,
     });
   } catch (err) {
