@@ -8,7 +8,7 @@ exports.initiatePayment = async (req, res) => {
     const molliePayment = await createPayment(
       price,
       `Payment for ${sessionPlan}`,
-      `${process.env.CLIENT_URL}/payment-success`,
+      `${process.env.CLIENT_URL}/paymentSuccess?id=${payment.id}`,
       `${process.env.SERVER_URL}`
     );
 
@@ -51,5 +51,23 @@ exports.paymentWebhook = async (req, res) => {
   } catch (err) {
     console.error('Webhook error:', err);
     res.status(500).send();
+  }
+};
+
+exports.getPaymentByTransactionId = async (req, res) => {
+  try {
+    const { transactionId } = req.params;
+    const payment = await Payment.findOne({ transactionId })
+      .populate('category_id')
+      .populate('userId');
+
+    if (!payment) {
+      return res.status(404).json({ error: 'Payment not found' });
+    }
+
+    res.json(payment);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Error fetching payment details' });
   }
 };

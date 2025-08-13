@@ -4,5 +4,7 @@ const paymentCtrl = require('../controllers/Payment.controller');
 
 router.post('/initiate', paymentCtrl.initiatePayment);
 router.post('/webhook', paymentCtrl.paymentWebhook);
+router.get('/:transactionId', paymentCtrl.getPaymentByTransactionId);
+
 
 module.exports = router;
