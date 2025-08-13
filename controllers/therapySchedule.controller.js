@@ -355,6 +355,87 @@ exports.getAvailableSlots = async (req, res) => {
   }
 };
 
+//Get Available Slots wab Based on Admin Settings & Bookings
+exports.getSlotsByDate = async (req, res) => {
+  try {
+    const { date } = req.query;
+
+    // Validate YYYY-MM-DD format
+    if (!date || !moment(date, "YYYY-MM-DD", true).isValid()) {
+      return res.status(400).json({
+        status: 400,
+        success: false,
+        message: "Invalid date format (YYYY-MM-DD)",
+        data: {}
+      });
+    }
+
+    // Normalize to UTC midnight for exact match
+    const simpleDate = new Date(date + "T00:00:00.000Z");
+
+    // Get admin's working hours for the specific date
+    const adminSlot = await AdminSlot.findOne({ date: simpleDate });
+    if (!adminSlot) {
+      return res.status(404).json({
+        status: 404,
+        success: false,
+        message: "No working hours set for this date",
+        data: {}
+      });
+    }
+
+    // Get all bookings for this date that are pending or approved
+    const schedules = await TherapySchedule.find({
+      sessions: {
+        $elemMatch: {
+          date: {
+            $gte: simpleDate,
+            $lt: new Date(simpleDate.getTime() + 24 * 60 * 60 * 1000),
+          },
+        },
+      },
+      isApproved: { $in: ["pending", "approved"] },
+    });
+
+    const bookedSlots = [];
+    schedules.forEach(schedule => {
+      schedule.sessions.forEach(session => {
+        if (moment(session.date).format("YYYY-MM-DD") === date) {
+          bookedSlots.push(session.start);
+        }
+      });
+    });
+
+    // Merge bookings with admin slots to mark availability
+    const updatedSlots = adminSlot.slots.map(slot => ({
+      start: slot.start,
+      end: slot.end,
+      isAvailable: !bookedSlots.includes(slot.start)
+    }));
+
+    // Response
+    return res.status(200).json({
+      status: 200,
+      success: true,
+      message: "Slots fetched successfully",
+      data: {
+        date,
+        slots: updatedSlots
+      }
+    });
+
+  } catch (err) {
+    console.error("getSlotsByDate error:", err);
+    return res.status(500).json({
+      status: 500,
+      success: false,
+      message: err.message || "Server Error",
+      data: {}
+    });
+  }
+};
+
+
 // ADMIN: Set Working Hours & Generate Slots
  
 exports.setWorkingHours = async (req, res) => {
