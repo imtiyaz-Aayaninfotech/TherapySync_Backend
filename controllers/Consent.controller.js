@@ -153,22 +153,24 @@ exports.deleteConsent = async (req, res) => {
 exports.getConsentsByCategoryId = async (req, res) => {
   try {
     const { category_id } = req.params;
-    const Consents = await Consent.find({ category_id })
+
+    const consent = await Consent.findOne({ category_id })
       .populate('category_id', 'category');
 
     res.status(200).json({
       status: 200,
       success: true,
-      message: 'Consents fetched by category successfully',
-      data: Consents
+      message: 'Consent fetched by category successfully',
+      data: consent || {} 
     });
   } catch (err) {
     res.status(500).json({
       status: 500,
       success: false,
       message: 'Server error',
-      data: null
+      data: {}
     });
   }
 };
+
 
