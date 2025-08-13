@@ -1,22 +1,14 @@
-const mongoose = require("mongoose");
+const mongoose = require('mongoose');
 
-const CardSchema = new mongoose.Schema({
-  cardHolderName: { type: String, required: true },
-  cardNumber: { type: String, required: true },
-  expiryMonth: { type: String, required: true }, // MM
-  expiryYear: { type: String, required: true },  // YYYY
-  cvv: { type: String, required: true }
-}, { _id: false });
-
-const PaymentSchema = new mongoose.Schema({
+const paymentSchema = new mongoose.Schema({
   category_id: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: "Category",
+    ref: 'Category',
     required: true
   },
-  user: {
+  userId: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: "User",
+    ref: 'User',
     required: true
   },
   sessionPlan: {
@@ -25,38 +17,42 @@ const PaymentSchema = new mongoose.Schema({
   },
   price: {
     type: Number,
-    required: true,
-    min: 0
-  },
-  region: {
-    type: String,
-    enum: ["Berlin", "Thessaloniki"],
     required: true
+  },
+  currency: {
+    type: String,
+    default: 'EUR'
   },
   method: {
     type: String,
-    enum: ["Credit Card", "Debit Card", "GPay", "Paypal", "Apple Pay"],
+    enum: ['ideal', 'creditcard', 'paypal', 'banktransfer', 'other'],
     required: true
   },
   cardDetails: {
-    type: CardSchema,
-    required: function () {
-      return this.method === "Credit Card" || this.method === "Debit Card";
-    }
+    last4: { type: String },
+    brand: { type: String }
   },
   transactionId: {
     type: String,
-    required: true
+    default: ''
   },
   paymentStatus: {
     type: String,
-    enum: ["pending", "success", "failed"],
-    default: "pending"
+    enum: ['pending', 'paid', 'failed', 'refunded'],
+    default: 'pending'
   },
-  createdAt: {
-    type: Date,
-    default: Date.now
+  bookingFee: {
+    type: Number,
+    default: 0
+  },
+  finalPayment: {
+    type: Number,
+    default: 0
+  },
+  refund: {
+    type: Number,
+    default: 0
   }
-});
+}, { timestamps: true });
 
-module.exports = mongoose.model("Payment", PaymentSchema);
+module.exports = mongoose.model('Payment', paymentSchema);

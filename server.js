@@ -40,7 +40,7 @@ app.use('/api/users', userRoutes);
 app.use('/api/Category', Category);
 app.use('/api/Consent', Consent);
 app.use("/api/therapy-schedule", therapyScheduleRoutes);
-app.use("/api/payment", payment);
+app.use("/api/payments", payment);
 app.use("/api/agreement", agreementRoutes);
 app.use("/api/DoctorInfo", DoctorInfo);
 app.use("/api/coaching-enquiry", CoachingEnquiry);

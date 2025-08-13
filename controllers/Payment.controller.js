@@ -1,50 +1,55 @@
-const Payment = require("../models/Payment.model");
-const { v4: uuidv4 } = require("uuid"); // npm install uuid
-const TherapySchedule = require("../models/therapySchedule.model");
+const Payment = require('../models/Payment.model');
+const { createPayment, getPaymentStatus } = require('../services/mollie.service');
 
-
-exports.createPayment = async (req, res) => {
+exports.initiatePayment = async (req, res) => {
   try {
-    const {
-      category_id,
-      user,
-      sessionPlan,
+    const { category_id, userId, sessionPlan, price, method } = req.body;
+
+    const molliePayment = await createPayment(
       price,
-      region,
-      method,
-      cardDetails
-    } = req.body;
-
-    // Create Payment
-    const payment = new Payment({
-      category_id,
-      user,
-      sessionPlan,
-      price,
-      region,
-      method,
-      cardDetails: (method === "Credit Card" || method === "Debit Card") ? cardDetails : undefined,
-      transactionId: uuidv4(),
-      paymentStatus: "success"
-    });
-
-    const savedPayment = await payment.save();
-
-    // Update isPaid if TherapySchedule exists with matching category_id and user
-    const therapyUpdate = await TherapySchedule.findOneAndUpdate(
-      { category_id, user },
-      { isPaid: true },
-      { new: true }
+      `Payment for ${sessionPlan}`,
+      `${process.env.CLIENT_URL}/payment-success`,
+      `${process.env.SERVER_URL}`
     );
 
-    res.status(201).json({
-      message: "Payment created & TherapySchedule updated",
-      payment: savedPayment,
-      therapySchedule: therapyUpdate
+    const payment = await Payment.create({
+      category_id,
+      userId,
+      sessionPlan,
+      price,
+      method,
+      transactionId: molliePayment.id,
+      paymentStatus: 'pending'
     });
 
-  } catch (error) {
-    console.error("Payment creation error:", error);
-    res.status(500).json({ message: "Server error", error: error.message });
+    res.json({ checkoutUrl: molliePayment.getCheckoutUrl(), payment });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Payment initiation failed' });
+  }
+};
+
+exports.paymentWebhook = async (req, res) => {
+  try {
+    const paymentId = req.body.id;
+    const mollieData = await getPaymentStatus(paymentId);
+    
+    const updatedStatus = mollieData.status === 'paid'
+      ? 'paid'
+      : mollieData.status === 'failed'
+      ? 'failed'
+      : mollieData.status === 'canceled'
+      ? 'failed'
+      : mollieData.status;
+
+    await Payment.findOneAndUpdate(
+      { transactionId: paymentId },
+      { paymentStatus: updatedStatus }
+    );
+
+    res.status(200).send('OK');
+  } catch (err) {
+    console.error('Webhook error:', err);
+    res.status(500).send();
   }
 };
