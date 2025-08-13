@@ -1,26 +1,59 @@
 const Payment = require('../models/Payment.model');
 const { createPayment, getPaymentStatus } = require('../services/mollie.service');
 
+// exports.initiatePayment = async (req, res) => {
+//   try {
+//     const { category_id, userId, sessionPlan, price, method } = req.body;
+
+//     const molliePayment = await createPayment(
+//       price,
+//       `Payment for ${sessionPlan}`,
+//       `${process.env.CLIENT_URL}/paymentSuccess?id=${payment.id}`,
+//       `${process.env.SERVER_URL}`
+//     );
+
+//     const payment = await Payment.create({
+//       category_id,
+//       userId,
+//       sessionPlan,
+//       price,
+//       method,
+//       transactionId: molliePayment.id,
+//       paymentStatus: 'pending'
+//     });
+
+//     res.json({ checkoutUrl: molliePayment.getCheckoutUrl(), payment });
+//   } catch (err) {
+//     console.error(err);
+//     res.status(500).json({ error: 'Payment initiation failed' });
+//   }
+// };
+
 exports.initiatePayment = async (req, res) => {
   try {
     const { category_id, userId, sessionPlan, price, method } = req.body;
 
-    const molliePayment = await createPayment(
-      price,
-      `Payment for ${sessionPlan}`,
-      `${process.env.CLIENT_URL}/paymentSuccess?id=${payment.id}`,
-      `${process.env.SERVER_URL}`
-    );
-
+    // Step 1: Create pending payment in DB
     const payment = await Payment.create({
       category_id,
       userId,
       sessionPlan,
       price,
       method,
-      transactionId: molliePayment.id,
       paymentStatus: 'pending'
     });
+
+    // Step 2: Call Mollie with redirect URL using DB payment._id
+    const molliePayment = await createPayment(
+      price,
+      `Payment for ${sessionPlan}`,
+      `${process.env.CLIENT_URL}/payment-success?id=${payment._id}`,
+      `${process.env.SERVER_URL}`
+    );
+
+    // Step 3: Update transactionId in DB
+    payment.transactionId = molliePayment.id;
+    await payment.save();
 
     res.json({ checkoutUrl: molliePayment.getCheckoutUrl(), payment });
   } catch (err) {
@@ -28,6 +61,7 @@ exports.initiatePayment = async (req, res) => {
     res.status(500).json({ error: 'Payment initiation failed' });
   }
 };
+
 
 exports.paymentWebhook = async (req, res) => {
   try {
