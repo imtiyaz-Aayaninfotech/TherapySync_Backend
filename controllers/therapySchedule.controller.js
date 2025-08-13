@@ -143,6 +143,41 @@ exports.getScheduleById = async (req, res) => {
   }
 };
 
+exports.getUserById = async (req, res) => {
+  try {
+    const userId = req.params.id; // id from URL path
+
+    // Find all schedules belonging to this user
+    const schedules = await TherapySchedule.find({ user: userId })
+      .populate("user", "name email")
+      .populate("category_id", "name");
+
+    if (!schedules || schedules.length === 0) {
+      return res.status(404).json({
+        status: 404,
+        success: false,
+        message: "No schedules found for this user",
+        data: [] // always empty array when not found
+      });
+    }
+
+    return res.status(200).json({
+      status: 200,
+      success: true,
+      message: "User schedules fetched successfully",
+      data: schedules
+    });
+
+  } catch (err) {
+    console.error("Error fetching user schedules:", err);
+    return res.status(400).json({
+      status: 400,
+      success: false,
+      message: err.message || "An error occurred while fetching user schedules",
+      data: []
+    });
+  }
+};
 
 exports.updateApprovalStatus = async (req, res) => {
   try {
@@ -246,50 +281,89 @@ exports.rescheduleSession = async (req, res) => {
   try {
     const { newDate, start, end, reason, message } = req.body;
 
-    const schedule = await TherapySchedule.findById(req.params.id);
-    if (!schedule) {
-      return res.status(404).json({
-        status: 404,
-        success: false,
-        message: "Schedule not found",
-        data: [],
-      });
+    if (!newDate || !start || !end || !reason) {
+      return res.status(400).json({ message: "newDate, start, end, and reason are required" });
     }
 
-    // Get last session
+    const schedule = await TherapySchedule.findById(req.params.id);
+    if (!schedule) {
+      return res.status(404).json({ message: "Schedule not found" });
+    }
+
+    // Get last session from the schedule
     const lastSessionIndex = schedule.sessions.length - 1;
     const lastSession = schedule.sessions[lastSessionIndex];
 
-    // Add to reschedule history
+    const oldDateStr = moment(lastSession.date).format("YYYY-MM-DD");
+    const newDateStr = moment(newDate).format("YYYY-MM-DD");
+
+    const oldNormalizedDate = new Date(oldDateStr + "T00:00:00.000Z");
+    const newNormalizedDate = new Date(newDateStr + "T00:00:00.000Z");
+    const nextDayNew = new Date(newNormalizedDate.getTime() + 24 * 60 * 60 * 1000);
+
+    // 1️⃣ Free up the old slot in AdminSlot
+    let oldSlotDoc = await AdminSlot.findOne({ date: oldNormalizedDate });
+    if (oldSlotDoc) {
+      const oldSlot = oldSlotDoc.slots.find(s => s.start === lastSession.start);
+      if (oldSlot) oldSlot.isAvailable = true;
+      await oldSlotDoc.save();
+    }
+
+    // 2️⃣ Check for new slot availability
+    let newSlotDoc = await AdminSlot.findOne({ date: newNormalizedDate });
+    if (!newSlotDoc) {
+      // Try fallback by date range
+      newSlotDoc = await AdminSlot.findOne({
+        date: { $gte: newNormalizedDate, $lt: nextDayNew }
+      });
+    }
+    if (!newSlotDoc) {
+      return res.status(400).json({ message: `Admin has not set working hours for ${newDateStr}` });
+    }
+
+    const targetSlot = newSlotDoc.slots.find(s => s.start === start);
+    if (!targetSlot) {
+      return res.status(400).json({ message: `Slot starting at ${start} not found for ${newDateStr}` });
+    }
+    if (!targetSlot.isAvailable) {
+      return res.status(400).json({ message: `Slot starting at ${start} is already booked` });
+    }
+
+    // 3️⃣ Mark the new slot as booked
+    targetSlot.isAvailable = false;
+    await newSlotDoc.save();
+
+    // 4️⃣ Add reschedule history
     schedule.rescheduleHistory.push({
       previousDate: lastSession.date,
-      newDate: newDate,
-      reason: reason,
+      newDate,
+      reason,
       message: message || "",
     });
 
-    // Update session with new date and time
+    // 5️⃣ Update session details
     schedule.sessions[lastSessionIndex].date = newDate;
     schedule.sessions[lastSessionIndex].start = start;
     schedule.sessions[lastSessionIndex].end = end;
 
-    // Update status
+    // 6️⃣ Update status
     schedule.status = "rescheduled";
 
     const updated = await schedule.save();
 
-    res.status(200).json({
+    return res.status(200).json({
       status: 200,
       success: true,
       message: "Session rescheduled successfully",
       data: updated,
     });
+
   } catch (err) {
-    res.status(400).json({
+    console.error("Reschedule error:", err);
+    return res.status(400).json({
       status: 400,
       success: false,
-      message: err.message,
-      data: [],
+      message: err.message || "Error rescheduling session",
     });
   }
 };
