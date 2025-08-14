@@ -72,18 +72,30 @@ exports.paymentWebhook = async (req, res) => {
   try {
     const paymentId = req.body.id;
     const mollieData = await getPaymentStatus(paymentId);
-    
-    const updatedStatus = mollieData.status === 'paid'
-      ? 'paid'
-      : mollieData.status === 'failed'
-      ? 'failed'
-      : mollieData.status === 'canceled'
-      ? 'failed'
+
+    let updatedStatus = mollieData.status === 'paid' ? 'paid'
+      : (mollieData.status === 'failed' || mollieData.status === 'canceled') ? 'failed'
       : mollieData.status;
+
+    let cardDetails = {};
+    if (mollieData.details && mollieData.details.card) {
+      cardDetails = {
+        last4: mollieData.details.card.last4,
+        brand: mollieData.details.card.brand,
+        cardHolder: mollieData.details.card.cardHolder,
+      };
+    }
+
+    let finalPayment = mollieData.amount && mollieData.amount.value ? Number(mollieData.amount.value) : 0;
 
     await Payment.findOneAndUpdate(
       { transactionId: paymentId },
-      { paymentStatus: updatedStatus }
+      {
+        paymentStatus: updatedStatus,
+        cardDetails: cardDetails,
+        finalPayment: finalPayment,
+        // bookingFee: you can set based on logic if needed
+      }
     );
 
     res.status(200).send('OK');
@@ -92,6 +104,7 @@ exports.paymentWebhook = async (req, res) => {
     res.status(500).send();
   }
 };
+
 
 exports.getPaymentByTransactionId = async (req, res) => {
   try {
