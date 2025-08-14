@@ -70,12 +70,17 @@ exports.initiatePayment = async (req, res) => {
 
 exports.paymentWebhook = async (req, res) => {
   try {
-    const paymentId = req.body.id;
+    const paymentId = req.body.id; // Mollie transaction ID
+    console.log("Webhook called for payment:", paymentId);
+
     const mollieData = await getPaymentStatus(paymentId);
 
-    let updatedStatus = mollieData.status === 'paid' ? 'paid'
-      : (mollieData.status === 'failed' || mollieData.status === 'canceled') ? 'failed'
-      : mollieData.status;
+    const updatedStatus =
+      mollieData.status === 'paid'
+        ? 'paid'
+        : (mollieData.status === 'failed' || mollieData.status === 'canceled')
+        ? 'failed'
+        : mollieData.status;
 
     let cardDetails = {};
     if (mollieData.details && mollieData.details.card) {
@@ -86,17 +91,25 @@ exports.paymentWebhook = async (req, res) => {
       };
     }
 
-    let finalPayment = mollieData.amount && mollieData.amount.value ? Number(mollieData.amount.value) : 0;
+    const finalPayment = mollieData.amount?.value
+      ? Number(mollieData.amount.value)
+      : 0;
 
-    await Payment.findOneAndUpdate(
+    const updatedPayment = await Payment.findOneAndUpdate(
       { transactionId: paymentId },
       {
         paymentStatus: updatedStatus,
         cardDetails: cardDetails,
         finalPayment: finalPayment,
-        // bookingFee: you can set based on logic if needed
-      }
+      },
+      { new: true }
     );
+
+    if (!updatedPayment) {
+      console.warn("No payment found to update for transactionId:", paymentId);
+    } else {
+      console.log("Payment updated:", updatedPayment);
+    }
 
     res.status(200).send('OK');
   } catch (err) {
@@ -104,6 +117,7 @@ exports.paymentWebhook = async (req, res) => {
     res.status(500).send();
   }
 };
+
 
 
 exports.getPaymentByTransactionId = async (req, res) => {
