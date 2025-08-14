@@ -65,9 +65,6 @@ exports.initiatePayment = async (req, res) => {
   }
 };
 
-
-
-
 exports.paymentWebhook = async (req, res) => {
   try {
     const paymentId = req.body.id; // Mollie transaction ID
@@ -115,6 +112,59 @@ exports.paymentWebhook = async (req, res) => {
   } catch (err) {
     console.error('Webhook error:', err);
     res.status(500).send();
+  }
+};
+
+// GET /api/payments/update/:mongoId
+exports.updatePaymentFromMollie = async (req, res) => {
+  try {
+    const { mongoId } = req.params;
+
+    // 1. Find payment in Mongo
+    const payment = await Payment.findById(mongoId);
+    if (!payment) {
+      return res.status(404).json({ error: "Payment not found" });
+    }
+
+    // 2. Fetch latest payment status from Mollie
+    const mollieData = await getPaymentStatus(payment.transactionId);
+
+    const updatedStatus =
+      mollieData.status === "paid"
+        ? "paid"
+        : mollieData.status === "failed" || mollieData.status === "canceled"
+        ? "failed"
+        : mollieData.status;
+
+    let cardDetails = {};
+    if (mollieData.details && mollieData.details.card) {
+      cardDetails = {
+        last4: mollieData.details.card.last4,
+        brand: mollieData.details.card.brand,
+        cardHolder: mollieData.details.card.cardHolder,
+      };
+    }
+
+    const finalPayment = mollieData.amount?.value
+      ? Number(mollieData.amount.value)
+      : 0;
+
+    // 3. Update Mongo
+    await Payment.findByIdAndUpdate(mongoId, {
+      paymentStatus: updatedStatus,
+      cardDetails: cardDetails,
+      finalPayment: finalPayment,
+    });
+
+    // 4. Return updated payment
+    const updatedPayment = await Payment.findById(mongoId)
+      .populate("category_id")
+      .populate("userId");
+
+    res.json(updatedPayment);
+  } catch (err) {
+    console.error("Auto-update error:", err);
+    res.status(500).json({ error: "Failed to update payment" });
   }
 };
 
