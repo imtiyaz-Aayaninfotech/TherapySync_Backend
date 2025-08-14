@@ -33,29 +33,32 @@ exports.initiatePayment = async (req, res) => {
   try {
     const { category_id, userId, sessionPlan, price, method } = req.body;
 
-    // Step 1: Create Mollie payment. Use a temporary redirect URL if needed.
-    const molliePayment = await createPayment(
-      price,
-      `Payment for ${sessionPlan}`,
-      `${process.env.CLIENT_URL}/payment-success?id=TEMP`, // pass a placeholder for now
-      `${process.env.SERVER_URL}`
-    );
-
-    // Step 2: Now you have molliePayment.id. Update the redirectUrl with the real transactionId if you want.
-    // (OR: if Mollie supports updating redirect URL, do it now. If not, just accept that it's set at creation.)
-
-    // Step 3: Create payment in DB with obtained transactionId
+    // Step 1 — Create payment in DB first
     const payment = await Payment.create({
       category_id,
       userId,
       sessionPlan,
       price,
       method,
-      transactionId: molliePayment.id,
       paymentStatus: 'pending'
     });
 
-    res.json({ checkoutUrl: molliePayment.getCheckoutUrl(), payment });
+    // Step 2 — Create Mollie payment & use Mongo _id in redirect URL
+    const molliePayment = await createPayment(
+      price,
+      `Payment for ${sessionPlan}`,
+      `${process.env.CLIENT_URL}/payment-success?id=${payment._id}`, // Use Mongo id
+      `${process.env.SERVER_URL}`
+    );
+
+    // Step 3 — Save Mollie transactionId in DB
+    payment.transactionId = molliePayment.id;
+    await payment.save();
+
+    res.json({
+      checkoutUrl: molliePayment.getCheckoutUrl(),
+      payment
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Payment initiation failed' });
@@ -92,8 +95,8 @@ exports.paymentWebhook = async (req, res) => {
 
 exports.getPaymentByTransactionId = async (req, res) => {
   try {
-    const { transactionId } = req.params;
-    const payment = await Payment.findOne({ transactionId })
+    const { transactionId } = req.params; // actually Mongo _id now
+    const payment = await Payment.findById(transactionId)
       .populate('category_id')
       .populate('userId');
 
