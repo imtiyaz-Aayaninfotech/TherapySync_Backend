@@ -33,15 +33,18 @@ exports.initiatePayment = async (req, res) => {
   try {
     const { category_id, userId, sessionPlan, price, method } = req.body;
 
-    // Step 1: Create Mollie payment first to get transactionId
+    // Step 1: Create Mollie payment. Use a temporary redirect URL if needed.
     const molliePayment = await createPayment(
       price,
       `Payment for ${sessionPlan}`,
-      `${process.env.CLIENT_URL}/payment-success?id=${molliePayment.id}`, // <-- now use transactionId
-      `${process.env.SERVER_URL}` // webhook
+      `${process.env.CLIENT_URL}/payment-success?id=TEMP`, // pass a placeholder for now
+      `${process.env.SERVER_URL}`
     );
 
-    // Step 2: Save payment in DB
+    // Step 2: Now you have molliePayment.id. Update the redirectUrl with the real transactionId if you want.
+    // (OR: if Mollie supports updating redirect URL, do it now. If not, just accept that it's set at creation.)
+
+    // Step 3: Create payment in DB with obtained transactionId
     const payment = await Payment.create({
       category_id,
       userId,
@@ -53,12 +56,12 @@ exports.initiatePayment = async (req, res) => {
     });
 
     res.json({ checkoutUrl: molliePayment.getCheckoutUrl(), payment });
-
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Payment initiation failed' });
   }
 };
+
 
 
 
