@@ -184,34 +184,44 @@ exports.paymentWebhook = async (req, res) => {
     const paymentId = req.body.id; // Mollie transaction ID
     const mollieData = await getPaymentStatus(paymentId);
 
-    const updatedStatus = mollieData.status === 'paid' ? 'paid' : ['failed', 'canceled'].includes(mollieData.status) ? 'failed' : mollieData.status;
-    
+    const updatedStatus = mollieData.status === 'paid' ? 'paid'
+      : ['failed', 'canceled'].includes(mollieData.status) ? 'failed' : mollieData.status;
+
+    // Extract card details if exists
     let cardDetails = {};
     if (mollieData.details && mollieData.details.card) {
       cardDetails = {
         last4: mollieData.details.card.last4,
-        brand: mollieData.details.card.brand
+        brand: mollieData.details.card.brand,
+        cardHolder: mollieData.details.card.cardHolder,
+        expMonth: mollieData.details.card.expiryMonth,
+        expYear: mollieData.details.card.expiryYear,
       };
     }
-    
+
+    // Extract payer info if available
+    const payerDetails = {
+      email: mollieData.customer? mollieData.customer.email : undefined,
+      name: mollieData.customer? mollieData.customer.name : undefined,
+      locale: mollieData.locale,
+    };
+
     const paymentRecord = await Payment.findOneAndUpdate(
       { transactionId: paymentId },
       {
         paymentStatus: updatedStatus,
         cardDetails,
+        payerDetails,
       },
       { new: true }
     );
 
-    if (paymentRecord && paymentRecord.paymentStatus === 'paid') {
-      // If booking fee payment confirmed, confirm TherapySchedule
-      if (paymentRecord.paymentType === 'bookingFee') {
-        await TherapySchedule.findByIdAndUpdate(paymentRecord.therapyScheduleId, {
-          isPaid: true,
-          status: 'scheduled',
-        });
-      }
-      // You can extend this logic for full payment or final payment if needed
+    // Confirm TherapySchedule if bookingFee paid
+    if (paymentRecord && paymentRecord.paymentStatus === 'paid' && paymentRecord.paymentType === 'bookingFee') {
+      await TherapySchedule.findByIdAndUpdate(paymentRecord.therapyScheduleId, {
+        isPaid: true,
+        status: 'scheduled',
+      });
     }
 
     res.status(200).send('OK');
