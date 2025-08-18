@@ -90,89 +90,90 @@ exports.paymentWebhook = async (req, res) => {
 exports.initiateBookingPayment = async (req, res) => {
   try {
     const { therapyScheduleId, method } = req.body;
-
-    // Find TherapySchedule
     const schedule = await TherapySchedule.findById(therapyScheduleId);
     if (!schedule) return res.status(404).json({ error: "Schedule not found" });
 
+    console.log("CLIENT_URL:", process.env.CLIENT_URL);
+    console.log("SERVER_URL:", process.env.SERVER_URL);
+    console.log("MOLLIE_API_KEY:", process.env.MOLLIE_API_KEY);
+
     const sessionStart = schedule.sessions[0].date;
     const hoursToSession = (new Date(sessionStart) - new Date()) / (1000 * 60 * 60);
-
     const totalPrice = schedule.price; // e.g. 500
-    const bookingFeeAmount = 100; // or calculate dynamically if needed
+    const bookingFeeAmount = 100;
     const finalPaymentAmount = totalPrice - bookingFeeAmount;
 
     if (!method) return res.status(400).json({ error: "Payment method required" });
 
-    // Decide payment flow
     let payments = [];
-    if (hoursToSession > 48) {
-      // Split payment: create booking fee payment first
-      const bookingPayment = await Payment.create({
-        category_id: schedule.category_id,
-        userId: schedule.user,
-        therapyScheduleId: schedule._id,
-        sessionPlan: schedule.sessionPlan,
-        price: bookingFeeAmount,
-        method,
-        paymentStatus: 'pending',
-        paymentType: 'bookingFee',
-        bookingFee: bookingFeeAmount,
-      });
+    let molliePayment;
+    try {
+      if (hoursToSession > 48) {
+        const bookingPayment = await Payment.create({
+          category_id: schedule.category_id,
+          userId: schedule.user,
+          therapyScheduleId: schedule._id,
+          sessionPlan: schedule.sessionPlan,
+          price: bookingFeeAmount,
+          method,
+          paymentStatus: 'pending',
+          paymentType: 'bookingFee',
+          bookingFee: bookingFeeAmount,
+        });
 
-      // Create Mollie payment
-      const molliePayment = await createPayment(
-        bookingFeeAmount,
-        `Booking fee for therapy schedule ${therapyScheduleId}`,
-        `${process.env.CLIENT_URL}/payment-success?id=${bookingPayment._id}`,
-        `${process.env.SERVER_URL}`
-      );
+        molliePayment = await createPayment(
+          bookingFeeAmount,
+          `Booking fee for therapy schedule ${therapyScheduleId}`,
+          `${process.env.CLIENT_URL}/payment-success?id=${bookingPayment._id}`,
+          `${process.env.SERVER_URL}`,
+          method // <-- pass method to Mollie
+        );
 
-      // Save Mollie transactionId in payment
-      bookingPayment.transactionId = molliePayment.id;
-      await bookingPayment.save();
+        bookingPayment.transactionId = molliePayment.id;
+        await bookingPayment.save();
+        payments.push(bookingPayment);
+        return res.json({
+          checkoutUrl: molliePayment._links.checkout.href,
+          payment: bookingPayment,
+        });
+      } else {
+        // Only full payment allowed
+        const fullPayment = await Payment.create({
+          category_id: schedule.category_id,
+          userId: schedule.user,
+          therapyScheduleId: schedule._id,
+          sessionPlan: schedule.sessionPlan,
+          price: totalPrice,
+          method,
+          paymentStatus: 'pending',
+          paymentType: 'full',
+          bookingFee: bookingFeeAmount,
+          finalPayment: finalPaymentAmount,
+        });
 
-      payments.push(bookingPayment);
+        molliePayment = await createPayment(
+          totalPrice,
+          `Full payment for therapy schedule ${therapyScheduleId}`,
+          `${process.env.CLIENT_URL}/payment-success?id=${fullPayment._id}`,
+          `${process.env.SERVER_URL}`,
+          method
+        );
 
-      return res.json({
-        checkoutUrl: molliePayment.getCheckoutUrl(),
-        payment: bookingPayment,
-      });
-    } else {
-      // Only full payment allowed
-      const fullPayment = await Payment.create({
-        category_id: schedule.category_id,
-        userId: schedule.user,
-        therapyScheduleId: schedule._id,
-        sessionPlan: schedule.sessionPlan,
-        price: totalPrice,
-        method,
-        paymentStatus: 'pending',
-        paymentType: 'full',
-        bookingFee: bookingFeeAmount,
-        finalPayment: finalPaymentAmount,
-      });
-
-      const molliePayment = await createPayment(
-        totalPrice,
-        `Full payment for therapy schedule ${therapyScheduleId}`,
-        `${process.env.CLIENT_URL}/payment-success?id=${fullPayment._id}`,
-        `${process.env.SERVER_URL}`
-      );
-
-      fullPayment.transactionId = molliePayment.id;
-      await fullPayment.save();
-
-      payments.push(fullPayment);
-
-      return res.json({
-        checkoutUrl: molliePayment.getCheckoutUrl(),
-        payment: fullPayment,
-      });
+        fullPayment.transactionId = molliePayment.id;
+        await fullPayment.save();
+        payments.push(fullPayment);
+        return res.json({
+          checkoutUrl: molliePayment._links.checkout.href,
+          payment: fullPayment,
+        });
+      }
+    } catch (mollieErr) {
+      console.error("Mollie payment creation error:", mollieErr);
+      return res.status(500).json({ error: mollieErr.message || "Mollie payment error occurred" });
     }
   } catch (err) {
     console.error("Error in initiateBookingPayment:", err);
-    res.status(500).json({ error: 'Failed to initiate payment' });
+    res.status(500).json({ error: err.message || 'Failed to initiate payment' });
   }
 };
 
