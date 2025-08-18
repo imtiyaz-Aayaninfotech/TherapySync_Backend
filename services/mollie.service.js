@@ -24,4 +24,17 @@ async function getPaymentStatus(paymentId) {
   return await mollie.payments.get(paymentId);
 }
 
-module.exports = { createPayment, getPaymentStatus };
+async function createRefund(paymentId, amount = null) {
+  try {
+    const refundOptions = amount
+      ? { amount: { value: amount.toFixed(2), currency: 'EUR' } }
+      : {}; // refund full if no amount specified
+
+    const refund = await mollie.payments.refunds.createFor(paymentId, refundOptions);
+    return refund;
+  } catch (err) {
+    console.error('Mollie refund error:', err);
+    throw err;
+  }
+}
+module.exports = { createPayment, getPaymentStatus, createRefund};

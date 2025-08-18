@@ -5,6 +5,89 @@ const generateSlots = require("../utils/slotGenerator");
 
 
 // CLIENT: Create Schedule + Book Slot in ONE API
+// exports.createSchedule = async (req, res) => {
+//   try {
+//     const { sessions } = req.body;
+
+//     // 1. Validate sessions
+//     if (!sessions || !sessions.length) {
+//       return res.status(400).json({
+//         message: "Sessions array is required and cannot be empty",
+//       });
+//     }
+
+//     const firstSession = sessions[0];
+
+//     if (!firstSession.date || !firstSession.start || !firstSession.end) {
+//       return res.status(400).json({
+//         message: "Each session requires date, start, and end time",
+//       });
+//     }
+
+//     // 2. Normalize to UTC midnight
+//     const bookingDateStr = moment(firstSession.date).format("YYYY-MM-DD");
+//     const normalizedDate = new Date(bookingDateStr + "T00:00:00.000Z");
+//     const nextDay = new Date(normalizedDate.getTime() + 24 * 60 * 60 * 1000);
+//     const startSlot = firstSession.start;
+
+//     // 3. Try exact match first, then date range match for flexibility
+//     let adminSlot = await AdminSlot.findOne({ date: normalizedDate });
+
+//     if (!adminSlot) {
+//       // fallback for records stored with timezone offsets
+//       adminSlot = await AdminSlot.findOne({
+//         date: { $gte: normalizedDate, $lt: nextDay },
+//       });
+//     }
+
+//     if (!adminSlot) {
+//       return res.status(400).json({
+//         message: `Admin has not set working hours for ${bookingDateStr}`,
+//       });
+//     }
+
+//     const slot = adminSlot.slots.find(s => s.start === startSlot);
+//     if (!slot) {
+//       return res.status(400).json({ message: `Slot starting at ${startSlot} does not exist` });
+//     }
+
+//     // Check if the slot is occupied only by declined bookings
+//     if (!slot.isAvailable) {
+//       const existingBooking = await TherapySchedule.findOne({
+//         "sessions.date": { $gte: normalizedDate, $lt: nextDay },
+//         "sessions.start": startSlot,
+//         isApproved: { $in: ["pending", "approved"] }, // declined excluded
+//       });
+
+//       if (existingBooking) {
+//         return res.status(400).json({ message: `Slot starting at ${startSlot} is already booked` });
+//       }
+//     }
+
+//     const newSchedule = new TherapySchedule(req.body);
+//     const savedSchedule = await newSchedule.save();
+
+//     // 7. Mark slot as booked and save
+//     slot.isAvailable = false;
+//     await adminSlot.save();
+
+//     // 8. Response
+//     return res.status(200).json({
+//       status: 200,
+//       success: true,
+//       message: "Schedule created and slot booked successfully",
+//       data: savedSchedule,
+//     });
+
+//   } catch (err) {
+//     console.error("Error in createSchedule:", err);
+//     return res.status(500).json({
+//       status: 500,
+//       message: err.message || "An error occurred while creating the schedule",
+//     });
+//   }
+// };
+
 exports.createSchedule = async (req, res) => {
   try {
     const { sessions } = req.body;
@@ -15,42 +98,47 @@ exports.createSchedule = async (req, res) => {
         message: "Sessions array is required and cannot be empty",
       });
     }
-
     const firstSession = sessions[0];
-
     if (!firstSession.date || !firstSession.start || !firstSession.end) {
       return res.status(400).json({
         message: "Each session requires date, start, and end time",
       });
     }
 
-    // 2. Normalize to UTC midnight
-    const bookingDateStr = moment(firstSession.date).format("YYYY-MM-DD");
-    const normalizedDate = new Date(bookingDateStr + "T00:00:00.000Z");
+    // 2. Normalize to UTC midnight (DO THIS BEFORE ERRORS that reference normalizedDate)
+    let normalizedDate;
+    let bookingDateStr;
+
+    if (firstSession.date) {
+      // Ensure date is always YYYY-MM-DD (if you get date string)
+      bookingDateStr = moment(firstSession.date).format("YYYY-MM-DD");
+      normalizedDate = new Date(bookingDateStr + "T00:00:00.000Z");
+    } else {
+      // If date is missing, return error
+      return res.status(400).json({
+        message: "Session date is missing"
+      });
+    }
+
     const nextDay = new Date(normalizedDate.getTime() + 24 * 60 * 60 * 1000);
     const startSlot = firstSession.start;
 
     // 3. Try exact match first, then date range match for flexibility
     let adminSlot = await AdminSlot.findOne({ date: normalizedDate });
-
     if (!adminSlot) {
-      // fallback for records stored with timezone offsets
       adminSlot = await AdminSlot.findOne({
         date: { $gte: normalizedDate, $lt: nextDay },
       });
     }
-
     if (!adminSlot) {
       return res.status(400).json({
         message: `Admin has not set working hours for ${bookingDateStr}`,
       });
     }
-
     const slot = adminSlot.slots.find(s => s.start === startSlot);
     if (!slot) {
       return res.status(400).json({ message: `Slot starting at ${startSlot} does not exist` });
     }
-
     // Check if the slot is occupied only by declined bookings
     if (!slot.isAvailable) {
       const existingBooking = await TherapySchedule.findOne({
@@ -58,27 +146,28 @@ exports.createSchedule = async (req, res) => {
         "sessions.start": startSlot,
         isApproved: { $in: ["pending", "approved"] }, // declined excluded
       });
-
       if (existingBooking) {
         return res.status(400).json({ message: `Slot starting at ${startSlot} is already booked` });
       }
     }
 
-    const newSchedule = new TherapySchedule(req.body);
-    const savedSchedule = await newSchedule.save();
-
-    // 7. Mark slot as booked and save
+    // Reserve slot and save schedule
     slot.isAvailable = false;
     await adminSlot.save();
 
-    // 8. Response
+    const newSchedule = new TherapySchedule({
+      ...req.body,
+      isPaid: false,
+      status: "pending"
+    });
+    const savedSchedule = await newSchedule.save();
+
     return res.status(200).json({
       status: 200,
       success: true,
-      message: "Schedule created and slot booked successfully",
+      message: "Slot tentatively booked - please complete payment",
       data: savedSchedule,
     });
-
   } catch (err) {
     console.error("Error in createSchedule:", err);
     return res.status(500).json({

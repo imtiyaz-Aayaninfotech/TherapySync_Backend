@@ -11,6 +11,11 @@ const paymentSchema = new mongoose.Schema({
     ref: 'User',
     required: true
   },
+  therapyScheduleId: { // LINK to TherapySchedule
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'TherapySchedule',
+    required: true
+  },
   sessionPlan: {
     type: String,
     required: true
@@ -41,6 +46,11 @@ const paymentSchema = new mongoose.Schema({
     enum: ['pending', 'paid', 'failed', 'refunded'],
     default: 'pending'
   },
+  paymentType: { // NEW FIELD to indicate type
+    type: String,
+    enum: ['full', 'bookingFee', 'finalPayment'],
+    required: true
+  },
   bookingFee: {
     type: Number,
     default: 0
@@ -48,6 +58,10 @@ const paymentSchema = new mongoose.Schema({
   finalPayment: {
     type: Number,
     default: 0
+  },
+  finalDueDate: { // NEW for split payments if needed
+    type: Date,
+    default: null
   },
   refund: {
     type: Number,
