@@ -216,6 +216,77 @@ exports.initiateBookingPayment = async (req, res) => {
   }
 };
 
+exports.initiateFinalPayment = async (req, res) => {
+  try {
+    const { therapyScheduleId, method } = req.body;
+    if (!therapyScheduleId || !method) {
+      return res.status(400).json({ error: "therapyScheduleId and method are required" });
+    }
+
+    // Find paid bookingFee payment for this therapyScheduleId
+    const paidBookingFee = await Payment.findOne({
+      therapyScheduleId,
+      paymentType: "bookingFee",
+      paymentStatus: "paid"
+    });
+
+    if (!paidBookingFee) {
+      return res.status(400).json({ error: "Booking fee not paid yet or does not exist" });
+    }
+
+    // Check if final payment already exists to avoid duplicates
+    const existingFinalPayment = await Payment.findOne({
+      therapyScheduleId,
+      paymentType: "finalPayment"
+    });
+    if (existingFinalPayment) {
+      return res.status(400).json({ error: "Final payment already initiated" });
+    }
+
+    // Get therapy schedule to calculate final payment amount
+    const schedule = await TherapySchedule.findById(therapyScheduleId);
+    if (!schedule) {
+      return res.status(404).json({ error: "Therapy schedule not found" });
+    }
+
+    // Define payment amounts
+    const totalPrice = 500;    // Your business fixed total price
+    const bookingFeeAmount = 100;
+    const finalPaymentAmount = totalPrice - bookingFeeAmount;  // 400
+
+    const finalPayment = await Payment.create({
+      category_id: schedule.category_id,
+      userId: schedule.user,
+      therapyScheduleId: schedule._id,
+      sessionPlan: schedule.sessionPlan,
+      price: finalPaymentAmount,
+      method,
+      paymentType: "finalPayment",
+      paymentStatus: "pending"
+    });
+
+    const molliePayment = await createPayment(
+      finalPaymentAmount,
+      `Final payment for therapy schedule ${therapyScheduleId}`,
+      `${process.env.CLIENT_URL}/payment-success?id=${finalPayment._id}`,
+      `${process.env.SERVER_URL}`,
+      method
+    );
+
+    finalPayment.transactionId = molliePayment.id;
+    await finalPayment.save();
+
+    return res.json({
+      checkoutUrl: molliePayment._links.checkout.href,
+      payment: finalPayment,
+    });
+  } catch (err) {
+    console.error("Error in initiateFinalPayment:", err);
+    res.status(500).json({ error: err.message || "Failed to initiate final payment" });
+  }
+};
+
+
 exports.paymentWebhook = async (req, res) => {
   try {
     const paymentId = req.body.id;
