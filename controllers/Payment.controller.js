@@ -190,9 +190,9 @@ exports.initiateBookingPayment = async (req, res) => {
     const sessionStart = schedule.sessions[0].date;
     const hoursToSession = (new Date(sessionStart) - new Date()) / (1000 * 60 * 60);
 
-    const totalPrice = schedule.price; // e.g. 500
-    const bookingFeeAmount = 100;
-    const finalPaymentAmount = totalPrice - bookingFeeAmount;
+    var totalPrice = schedule.price; // e.g. 500
+    var bookingFeeAmount = 100;
+   var finalPaymentAmount = totalPrice - bookingFeeAmount;
 
     if (!method) return res.status(400).json({ error: "Payment method required" });
 
@@ -263,9 +263,6 @@ exports.initiateBookingPayment = async (req, res) => {
 };
 
 
-/**
- * Step 2: Webhook handler from Mollie
- */
 exports.paymentWebhook = async (req, res) => {
   try {
     const paymentId = req.body.id;
@@ -311,23 +308,20 @@ exports.paymentWebhook = async (req, res) => {
       return res.status(200).send('IGNORED');
     }
 
-    /**
-     * Handle booking fee confirmation
-     */
+    // When booking fee is paid, create the final payment record
     if (paymentRecord.paymentType === 'bookingFee' && paymentRecord.paymentStatus === 'paid') {
       console.log("Booking fee paid. Creating final payment...");
 
-      // Update schedule to depositPaid
+      // Mark schedule as depositPaid, not fully paid
       await TherapySchedule.findByIdAndUpdate(paymentRecord.therapyScheduleId, {
-        status: 'scheduled',          // tentatively scheduled (deposit secured)
-        isPaid: false,                // not fully paid yet
-        paymentProgress: 'depositPaid'
-      }, { new: true });
+        status: 'scheduled',
+        isPaid: false,
+        paymentProgress: 'depositPaid',
+      });
 
-      // Create final payment record (remaining 400)
       const schedule = await TherapySchedule.findById(paymentRecord.therapyScheduleId);
+      const finalPaymentAmount = schedule.price - 100;
 
-      const finalPaymentAmount = schedule.price - 100; // 400
       const finalPayment = await Payment.create({
         category_id: schedule.category_id,
         userId: schedule.user,
@@ -339,93 +333,35 @@ exports.paymentWebhook = async (req, res) => {
         paymentType: 'finalPayment',
       });
 
-      const molliePayment = await createPayment(
+      const mollieFinal = await createPayment(
         finalPaymentAmount,
         `Final payment for therapy schedule ${schedule._id}`,
         `${process.env.CLIENT_URL}/payment-success?id=${finalPayment._id}`,
-        `${process.env.SERVER_URL}`,
-        paymentRecord.method
+        process.env.SERVER_URL,
+        paymentRecord.method,
       );
 
-      finalPayment.transactionId = molliePayment.id;
+      finalPayment.transactionId = mollieFinal.id;
       await finalPayment.save();
 
+      // Optionally notify user with mollieFinal._links.checkout.href
       console.log("Final payment created:", finalPayment._id);
     }
 
-    /**
-     * Handle full OR final payment confirmation
-     */
+    // When full or final payment is paid, mark schedule fully paid
     if (
       (paymentRecord.paymentType === 'full' && paymentRecord.paymentStatus === 'paid') ||
       (paymentRecord.paymentType === 'finalPayment' && paymentRecord.paymentStatus === 'paid')
     ) {
       await TherapySchedule.findByIdAndUpdate(paymentRecord.therapyScheduleId, {
-        isPaid: true,       // now fully paid
+        isPaid: true,
         status: 'scheduled',
-        paymentProgress: 'fullyPaid'
-      }, { new: true });
+        paymentProgress: 'fullyPaid',
+      });
       console.log("Schedule fully paid & confirmed:", paymentRecord.therapyScheduleId);
     }
 
     res.status(200).send('OK');
-  } catch (err) {
-    console.error('Webhook error:', err);
-    res.status(500).send();
-  }
-};
-
-exports.paymentWebhook = async (req, res) => {
-  try {
-    const paymentId = req.body.id;
-    const mollieData = await getPaymentStatus(paymentId);
-
-    console.log('Mollie data:', JSON.stringify(mollieData, null, 2)); // add debug log
-
-    const updatedStatus = mollieData.status === 'paid' ? 'paid'
-      : ['failed', 'canceled'].includes(mollieData.status) ? 'failed' : mollieData.status;
-
-    let cardDetails = {};
-    if (mollieData.details && mollieData.details.card) {
-      cardDetails = {
-        last4: mollieData.details.card.last4,
-        brand: mollieData.details.card.brand,
-        cardHolder: mollieData.details.card.cardHolder || '',
-        expMonth: mollieData.details.card.expiryMonth || null,
-        expYear: mollieData.details.card.expiryYear || null,
-      };
-    }
-
-    const payerDetails = {
-      email: mollieData.customer ? mollieData.customer.email : '',
-      name: mollieData.customer ? mollieData.customer.name : '',
-      locale: mollieData.locale || '',
-    };
-
-    // Calculate final payment amount from Mollie data amount.value
-    const finalPaymentAmount = mollieData.amount?.value ? Number(mollieData.amount.value) : 0;
-
-    const paymentRecord = await Payment.findOneAndUpdate(
-      { transactionId: paymentId },
-      {
-        paymentStatus: updatedStatus,
-        cardDetails,
-        payerDetails,
-        finalPayment: finalPaymentAmount,
-      },
-      { new: true }
-    );
-
-    // Confirm TherapySchedule on bookingFee paid
-    if (paymentRecord && paymentRecord.paymentStatus === 'paid' && paymentRecord.paymentType === 'bookingFee') {
-      await TherapySchedule.findByIdAndUpdate(paymentRecord.therapyScheduleId, {
-        isPaid: true,
-        status: 'scheduled',
-      });
-    }
-
-    res.status(200).send('OK');
-
   } catch (err) {
     console.error('Webhook error:', err);
     res.status(500).send();
