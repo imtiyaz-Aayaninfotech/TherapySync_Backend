@@ -1,5 +1,7 @@
 const Payment = require('../models/Payment.model');
 const { createPayment, getPaymentStatus } = require('../services/mollie.service');
+const TherapySchedule = require('../models/therapySchedule.model');
+
 
 /*
 exports.initiatePayment = async (req, res) => {
