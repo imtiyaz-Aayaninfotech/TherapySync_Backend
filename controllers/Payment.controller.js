@@ -181,30 +181,33 @@ exports.initiateBookingPayment = async (req, res) => {
 
 exports.paymentWebhook = async (req, res) => {
   try {
-    const paymentId = req.body.id; // Mollie transaction ID
+    const paymentId = req.body.id;
     const mollieData = await getPaymentStatus(paymentId);
+
+    console.log('Mollie data:', JSON.stringify(mollieData, null, 2)); // add debug log
 
     const updatedStatus = mollieData.status === 'paid' ? 'paid'
       : ['failed', 'canceled'].includes(mollieData.status) ? 'failed' : mollieData.status;
 
-    // Extract card details if exists
     let cardDetails = {};
     if (mollieData.details && mollieData.details.card) {
       cardDetails = {
         last4: mollieData.details.card.last4,
         brand: mollieData.details.card.brand,
-        cardHolder: mollieData.details.card.cardHolder,
-        expMonth: mollieData.details.card.expiryMonth,
-        expYear: mollieData.details.card.expiryYear,
+        cardHolder: mollieData.details.card.cardHolder || '',
+        expMonth: mollieData.details.card.expiryMonth || null,
+        expYear: mollieData.details.card.expiryYear || null,
       };
     }
 
-    // Extract payer info if available
     const payerDetails = {
-      email: mollieData.customer? mollieData.customer.email : undefined,
-      name: mollieData.customer? mollieData.customer.name : undefined,
-      locale: mollieData.locale,
+      email: mollieData.customer ? mollieData.customer.email : '',
+      name: mollieData.customer ? mollieData.customer.name : '',
+      locale: mollieData.locale || '',
     };
+
+    // Calculate final payment amount from Mollie data amount.value
+    const finalPaymentAmount = mollieData.amount?.value ? Number(mollieData.amount.value) : 0;
 
     const paymentRecord = await Payment.findOneAndUpdate(
       { transactionId: paymentId },
@@ -212,11 +215,12 @@ exports.paymentWebhook = async (req, res) => {
         paymentStatus: updatedStatus,
         cardDetails,
         payerDetails,
+        finalPayment: finalPaymentAmount,
       },
       { new: true }
     );
 
-    // Confirm TherapySchedule if bookingFee paid
+    // Confirm TherapySchedule on bookingFee paid
     if (paymentRecord && paymentRecord.paymentStatus === 'paid' && paymentRecord.paymentType === 'bookingFee') {
       await TherapySchedule.findByIdAndUpdate(paymentRecord.therapyScheduleId, {
         isPaid: true,
@@ -225,6 +229,7 @@ exports.paymentWebhook = async (req, res) => {
     }
 
     res.status(200).send('OK');
+
   } catch (err) {
     console.error('Webhook error:', err);
     res.status(500).send();
