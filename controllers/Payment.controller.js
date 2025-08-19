@@ -93,9 +93,6 @@ const TherapySchedule = require('../models/therapySchedule.model');
 //   }
 // };
 
-
-
-
 exports.initiateBookingPayment = async (req, res) => {
   try {
     const { therapyScheduleId, method, paymentOption } = req.body;
