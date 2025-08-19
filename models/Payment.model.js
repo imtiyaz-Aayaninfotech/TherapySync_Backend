@@ -30,7 +30,7 @@ const paymentSchema = new mongoose.Schema({
   },
   method: {
     type: String,
-    enum: ['ideal', 'creditcard', 'paypal', 'banktransfer', 'other'],
+    enum: ['applepay', 'creditcard', 'paypal',],
     required: true
   },
   cardDetails: {

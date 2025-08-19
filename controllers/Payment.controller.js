@@ -222,75 +222,77 @@ exports.initiateBookingPayment = async (req, res) => {
   }
 };
 
+/*Confirms payment updates isPaid and paymentType
+Deletes schedule if no payment after 30 minutes (only if paymentType is null)
+Updates schedule price by one or the sum of two payments*/
+
 exports.paymentWebhook = async (req, res) => {
   try {
     const paymentId = req.body.id;
     const mollieData = await getPaymentStatus(paymentId);
 
-    const updatedStatus = mollieData.status === 'paid'
-      ? 'paid'
-      : ['failed', 'canceled'].includes(mollieData.status)
-      ? 'failed'
-      : mollieData.status;
+    const updatedStatus =
+      mollieData.status === "paid"
+        ? "paid"
+        : ["failed", "canceled"].includes(mollieData.status)
+        ? "failed"
+        : mollieData.status;
 
     const paymentRecord = await Payment.findOneAndUpdate(
       { transactionId: paymentId },
-      {
-        paymentStatus: updatedStatus,
-      },
+      { paymentStatus: updatedStatus },
       { new: true }
     );
 
     if (!paymentRecord) {
-      return res.status(200).send('IGNORED');
+      return res.status(200).send("NO PAYMENT FOUND, IGNORED");
     }
 
-    // If booking fee paid, create final payment (if split option chosen)
-    if (paymentRecord.paymentType === 'bookingFee' && paymentRecord.paymentStatus === 'paid') {
-      // Create final payment
-      const schedule = await TherapySchedule.findById(paymentRecord.therapyScheduleId);
-      const finalPaymentAmount = 400; // Always 400
-
-      const finalPayment = await Payment.create({
-        category_id: schedule.category_id,
-        userId: schedule.user,
-        therapyScheduleId: schedule._id,
-        sessionPlan: schedule.sessionPlan,
-        price: finalPaymentAmount,
-        method: paymentRecord.method,
-        paymentStatus: 'pending',
-        paymentType: 'finalPayment',
-      });
-
-      const mollieFinal = await createPayment(
-        finalPaymentAmount,
-        `Final payment for therapy schedule ${schedule._id}`,
-        `${process.env.CLIENT_URL}/payment-success?id=${finalPayment._id}`,
-        process.env.SERVER_URL,
-        paymentRecord.method,
-      );
-
-      finalPayment.transactionId = mollieFinal.id;
-      await finalPayment.save();
-
-      // Optionally notify user with mollieFinal._links.checkout.href
-    }
-
-    // If full OR final payment, mark schedule paid
-    if (
-      (paymentRecord.paymentType === 'full' && paymentRecord.paymentStatus === 'paid') ||
-      (paymentRecord.paymentType === 'finalPayment' && paymentRecord.paymentStatus === 'paid')
-    ) {
+    // Update TherapySchedule isPaid and paymentType if payment confirmed
+    if (paymentRecord.paymentStatus === "paid") {
       await TherapySchedule.findByIdAndUpdate(paymentRecord.therapyScheduleId, {
         isPaid: true,
-        status: 'scheduled',
+        paymentType: paymentRecord.paymentType,
       });
     }
 
-    res.status(200).send('OK');
-  } catch (err) {
-    console.error('Webhook error:', err);
-    res.status(500).send();
+    // Check TherapySchedule for auto-delete case if paymentType === null & 30 min passed
+    const schedule = await TherapySchedule.findById(paymentRecord.therapyScheduleId);
+    if (schedule.paymentType === null) {
+      const creationTime = new Date(schedule.createdAt);
+      const now = new Date();
+      const diffMins = (now - creationTime) / (1000 * 60);
+      if (diffMins >= 30) {
+        await TherapySchedule.findByIdAndDelete(schedule._id);
+        // Also delete all pending payments related to this schedule
+        await Payment.deleteMany({ therapyScheduleId: schedule._id });
+        return res.status(200).send("AUTO-DELETED TherapySchedule after 30 minutes with no payment");
+      }
+    }
+
+    // Update TherapySchedule price based on Payment count & sum
+    const payments = await Payment.find({
+      therapyScheduleId: paymentRecord.therapyScheduleId,
+      paymentStatus: "paid",
+    });
+
+    if (payments.length === 1) {
+      // Update price with single payment price
+      await TherapySchedule.findByIdAndUpdate(paymentRecord.therapyScheduleId, {
+        price: payments[0].price,
+      });
+    } else if (payments.length === 2) {
+      // Sum prices and update price
+      const totalPrice = payments.reduce((sum, p) => sum + p.price, 0);
+      await TherapySchedule.findByIdAndUpdate(paymentRecord.therapyScheduleId, {
+        price: totalPrice,
+      });
+    }
+
+    return res.status(200).send("OK");
+  } catch (error) {
+    console.error("Webhook error:", error);
+    return res.status(500).send("Webhook processing failed");
   }
 };
 

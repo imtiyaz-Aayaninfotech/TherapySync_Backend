@@ -116,6 +116,11 @@ const TherapyScheduleSchema = new mongoose.Schema(
       type: [RescheduleSchema],
       default: [],
     },
+    paymentType: {
+      type: String,
+      enum: [null, "full", "bookingFee", "finalPayment"],
+      default: null,
+    },
   },
   {
     timestamps: true,
