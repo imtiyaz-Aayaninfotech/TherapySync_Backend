@@ -366,6 +366,7 @@ exports.deleteSchedule = async (req, res) => {
   }
 };
 
+/*
 exports.rescheduleSession = async (req, res) => {
   try {
     const { newDate, start, end, reason, message } = req.body;
@@ -447,6 +448,103 @@ exports.rescheduleSession = async (req, res) => {
       data: updated,
     });
 
+  } catch (err) {
+    console.error("Reschedule error:", err);
+    return res.status(400).json({
+      status: 400,
+      success: false,
+      message: err.message || "Error rescheduling session",
+    });
+  }
+};  */
+
+exports.rescheduleSession = async (req, res) => {
+  try {
+    const { newDate, start, end, reason, message } = req.body;
+    if (!newDate || !start || !end || !reason) {
+      return res.status(400).json({ message: "newDate, start, end, and reason are required" });
+    }
+
+    const schedule = await TherapySchedule.findById(req.params.id);
+    if (!schedule) {
+      return res.status(404).json({ message: "Schedule not found" });
+    }
+
+    // === PAYMENT CHECK ===
+    // Only allow reschedule if paymentType is 'full' or 'finalPayment'
+    if (!["full", "finalPayment"].includes(schedule.paymentType)) {
+      return res.status(403).json({
+        message: "Rescheduling allowed only after full or final payment is completed",
+      });
+    }
+
+    // Get last session from schedule
+    const lastSessionIndex = schedule.sessions.length - 1;
+    const lastSession = schedule.sessions[lastSessionIndex];
+
+    const oldDateStr = moment(lastSession.date).format("YYYY-MM-DD");
+    const newDateStr = moment(newDate).format("YYYY-MM-DD");
+
+    // Normalize dates for querying slots
+    const oldNormalizedDate = new Date(oldDateStr + "T00:00:00.000Z");
+    const newNormalizedDate = new Date(newDateStr + "T00:00:00.000Z");
+    const nextDayNew = new Date(newNormalizedDate.getTime() + 24 * 60 * 60 * 1000);
+
+    // 1️⃣ Free up old slot
+    let oldSlotDoc = await AdminSlot.findOne({ date: oldNormalizedDate });
+    if (oldSlotDoc) {
+      const oldSlot = oldSlotDoc.slots.find((s) => s.start === lastSession.start);
+      if (oldSlot) oldSlot.isAvailable = true;
+      await oldSlotDoc.save();
+    }
+
+    // 2️⃣ Check new slot availability
+    let newSlotDoc = await AdminSlot.findOne({ date: newNormalizedDate });
+    if (!newSlotDoc) {
+      newSlotDoc = await AdminSlot.findOne({
+        date: { $gte: newNormalizedDate, $lt: nextDayNew },
+      });
+    }
+    if (!newSlotDoc) {
+      return res.status(400).json({ message: `Admin has not set working hours for ${newDateStr}` });
+    }
+
+    const targetSlot = newSlotDoc.slots.find((s) => s.start === start);
+    if (!targetSlot) {
+      return res.status(400).json({ message: `Slot starting at ${start} not found for ${newDateStr}` });
+    }
+    if (!targetSlot.isAvailable) {
+      return res.status(400).json({ message: `Slot starting at ${start} is already booked` });
+    }
+
+    // 3️⃣ Mark new slot booked
+    targetSlot.isAvailable = false;
+    await newSlotDoc.save();
+
+    // 4️⃣ Add reschedule history
+    schedule.rescheduleHistory.push({
+      previousDate: lastSession.date,
+      newDate,
+      reason,
+      message: message || "",
+    });
+
+    // 5️⃣ Update session details
+    schedule.sessions[lastSessionIndex].date = newDate;
+    schedule.sessions[lastSessionIndex].start = start;
+    schedule.sessions[lastSessionIndex].end = end;
+
+    // 6️⃣ Update status
+    schedule.status = "rescheduled";
+
+    const updated = await schedule.save();
+
+    return res.status(200).json({
+      status: 200,
+      success: true,
+      message: "Session rescheduled successfully",
+      data: updated,
+    });
   } catch (err) {
     console.error("Reschedule error:", err);
     return res.status(400).json({
