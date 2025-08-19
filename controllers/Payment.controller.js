@@ -96,9 +96,6 @@ const TherapySchedule = require('../models/therapySchedule.model');
 
 
 
-// GET /api/payments/update/:mongoId
-
-
 exports.initiateBookingPayment = async (req, res) => {
   try {
     const { therapyScheduleId, method, paymentOption } = req.body;
@@ -115,15 +112,58 @@ exports.initiateBookingPayment = async (req, res) => {
     const sessionStart = schedule.sessions[0].date;
     const now = new Date();
     const hoursToSession = (new Date(sessionStart) - now) / (1000 * 60 * 60);
-
-    // BUSINESS RULE BEGIN
-    const totalPrice = 500; // Always 500 for this product
+    const totalPrice = 500;  // Always 500 for this product
     const bookingFeeAmount = 100;
-    const finalPaymentAmount = 400;
+    const finalPaymentAmount = totalPrice - bookingFeeAmount; // 400
 
-    // If session is less than or equal to 48 hours away, FORCE full payment
-    if (hoursToSession <= 48) {
-      // Only allow full payment
+    // 1️⃣ Final payment logic for split (manual initiation)
+    if (paymentOption === 'final') {
+      // Check if booking fee has already been paid
+      const paidBookingFee = await Payment.findOne({
+        therapyScheduleId,
+        paymentType: 'bookingFee',
+        paymentStatus: 'paid'
+      });
+      if (!paidBookingFee) {
+        return res.status(400).json({ error: 'Booking fee not paid yet or does not exist' });
+      }
+      // Check if final payment already exists to avoid duplicates
+      const existingFinalPayment = await Payment.findOne({
+        therapyScheduleId,
+        paymentType: 'finalPayment'
+      });
+      if (existingFinalPayment) {
+        return res.status(400).json({ error: 'Final payment already initiated' });
+      }
+
+      // Initiate final payment
+      const finalPayment = await Payment.create({
+        category_id: schedule.category_id,
+        userId: schedule.user,
+        therapyScheduleId: schedule._id,
+        sessionPlan: schedule.sessionPlan,
+        price: finalPaymentAmount,
+        method,
+        paymentType: 'finalPayment',
+        paymentStatus: 'pending'
+      });
+      const molliePayment = await createPayment(
+        finalPaymentAmount,
+        `Final payment for therapy schedule ${therapyScheduleId}`,
+        `${process.env.CLIENT_URL}/payment-success?id=${finalPayment._id}`,
+        `${process.env.SERVER_URL}`,
+        method
+      );
+      finalPayment.transactionId = molliePayment.id;
+      await finalPayment.save();
+      return res.json({
+        checkoutUrl: molliePayment._links.checkout.href,
+        payment: finalPayment,
+      });
+    }
+
+    // 2️⃣ Full payment case (either forced or customer chooses)
+    if (hoursToSession <= 48 || paymentOption === 'full') {
       const fullPayment = await Payment.create({
         category_id: schedule.category_id,
         userId: schedule.user,
@@ -134,7 +174,6 @@ exports.initiateBookingPayment = async (req, res) => {
         paymentStatus: 'pending',
         paymentType: 'full',
       });
-
       const molliePayment = await createPayment(
         totalPrice,
         `Full payment for therapy schedule ${therapyScheduleId}`,
@@ -142,47 +181,16 @@ exports.initiateBookingPayment = async (req, res) => {
         `${process.env.SERVER_URL}`,
         method
       );
-
       fullPayment.transactionId = molliePayment.id;
       await fullPayment.save();
-
       return res.json({
         checkoutUrl: molliePayment._links.checkout.href,
         payment: fullPayment,
       });
     }
 
-    // If session is more than 48 hours away, offer choice
-    if (paymentOption === 'full') {
-      // Option 1: full payment even though >48h
-      const fullPayment = await Payment.create({
-        category_id: schedule.category_id,
-        userId: schedule.user,
-        therapyScheduleId: schedule._id,
-        sessionPlan: schedule.sessionPlan,
-        price: totalPrice,
-        method,
-        paymentStatus: 'pending',
-        paymentType: 'full',
-      });
-
-      const molliePayment = await createPayment(
-        totalPrice,
-        `Full payment for therapy schedule ${therapyScheduleId}`,
-        `${process.env.CLIENT_URL}/payment-success?id=${fullPayment._id}`,
-        `${process.env.SERVER_URL}`,
-        method
-      );
-
-      fullPayment.transactionId = molliePayment.id;
-      await fullPayment.save();
-
-      return res.json({
-        checkoutUrl: molliePayment._links.checkout.href,
-        payment: fullPayment,
-      });
-    } else {
-      // Option 2: split payment (first transaction - booking fee)
+    // 3️⃣ Initial split payment (booking fee)
+    if (paymentOption === 'split') {
       const bookingPayment = await Payment.create({
         category_id: schedule.category_id,
         userId: schedule.user,
@@ -193,7 +201,6 @@ exports.initiateBookingPayment = async (req, res) => {
         paymentStatus: 'pending',
         paymentType: 'bookingFee',
       });
-
       const molliePayment = await createPayment(
         bookingFeeAmount,
         `Booking fee for therapy schedule ${therapyScheduleId}`,
@@ -201,91 +208,22 @@ exports.initiateBookingPayment = async (req, res) => {
         `${process.env.SERVER_URL}`,
         method
       );
-
       bookingPayment.transactionId = molliePayment.id;
       await bookingPayment.save();
-
       return res.json({
         checkoutUrl: molliePayment._links.checkout.href,
         payment: bookingPayment,
       });
     }
+
+    // If none matched, invalid option
+    return res.status(400).json({ error: 'Invalid payment option or conditions not met.' });
+
   } catch (err) {
     console.error("Error in initiateBookingPayment:", err);
     res.status(500).json({ error: err.message || 'Failed to initiate payment' });
   }
 };
-
-exports.initiateFinalPayment = async (req, res) => {
-  try {
-    const { therapyScheduleId, method } = req.body;
-    if (!therapyScheduleId || !method) {
-      return res.status(400).json({ error: "therapyScheduleId and method are required" });
-    }
-
-    // Find paid bookingFee payment for this therapyScheduleId
-    const paidBookingFee = await Payment.findOne({
-      therapyScheduleId,
-      paymentType: "bookingFee",
-      paymentStatus: "paid"
-    });
-
-    if (!paidBookingFee) {
-      return res.status(400).json({ error: "Booking fee not paid yet or does not exist" });
-    }
-
-    // Check if final payment already exists to avoid duplicates
-    const existingFinalPayment = await Payment.findOne({
-      therapyScheduleId,
-      paymentType: "finalPayment"
-    });
-    if (existingFinalPayment) {
-      return res.status(400).json({ error: "Final payment already initiated" });
-    }
-
-    // Get therapy schedule to calculate final payment amount
-    const schedule = await TherapySchedule.findById(therapyScheduleId);
-    if (!schedule) {
-      return res.status(404).json({ error: "Therapy schedule not found" });
-    }
-
-    // Define payment amounts
-    const totalPrice = 500;    // Your business fixed total price
-    const bookingFeeAmount = 100;
-    const finalPaymentAmount = totalPrice - bookingFeeAmount;  // 400
-
-    const finalPayment = await Payment.create({
-      category_id: schedule.category_id,
-      userId: schedule.user,
-      therapyScheduleId: schedule._id,
-      sessionPlan: schedule.sessionPlan,
-      price: finalPaymentAmount,
-      method,
-      paymentType: "finalPayment",
-      paymentStatus: "pending"
-    });
-
-    const molliePayment = await createPayment(
-      finalPaymentAmount,
-      `Final payment for therapy schedule ${therapyScheduleId}`,
-      `${process.env.CLIENT_URL}/payment-success?id=${finalPayment._id}`,
-      `${process.env.SERVER_URL}`,
-      method
-    );
-
-    finalPayment.transactionId = molliePayment.id;
-    await finalPayment.save();
-
-    return res.json({
-      checkoutUrl: molliePayment._links.checkout.href,
-      payment: finalPayment,
-    });
-  } catch (err) {
-    console.error("Error in initiateFinalPayment:", err);
-    res.status(500).json({ error: err.message || "Failed to initiate final payment" });
-  }
-};
-
 
 exports.paymentWebhook = async (req, res) => {
   try {
