@@ -556,7 +556,7 @@ exports.rescheduleSession = async (req, res) => {
 };
 
 // CLIENT: Get Available Slots Based on Admin Settings & Bookings
-
+   
 exports.getAvailableSlots = async (req, res) => {
   try {
     const { date } = req.query;
