@@ -561,103 +561,31 @@ exports.getAvailableSlots = async (req, res) => {
   try {
     const { date } = req.query;
 
-    // Validate YYYY-MM-DD format
-    if (!date || !moment(date, "YYYY-MM-DD", true).isValid()) {
-      return res.status(400).json({ message: "Invalid date format (YYYY-MM-DD)" });
-    }
-
-    // 1. Always normalize to UTC midnight for exact match
-    const simpleDate = new Date(date + "T00:00:00.000Z");
-
-    // 2. Get admin's working hours for the specific date
-    const adminSlot = await AdminSlot.findOne({ date: simpleDate });
-    if (!adminSlot) {
-      return res.status(404).json({ message: "No working hours set for this date" });
-    }
-
-    // 3. Get all bookings for this date that are pending or approved
-    const schedules = await TherapySchedule.find({
-      sessions: {
-        $elemMatch: {
-          date: {
-            $gte: simpleDate,
-            $lt: new Date(simpleDate.getTime() + 24 * 60 * 60 * 1000),
-          },
-        },
-      },
-      isApproved: { $in: ["pending", "approved"] }, // declined not included
-    });
-
-    const bookedSlots = [];
-    schedules.forEach(schedule => {
-      schedule.sessions.forEach(session => {
-        if (moment(session.date).format("YYYY-MM-DD") === date) {
-          bookedSlots.push(session.start);
-        }
-      });
-    });
-
-    // 5. Merge bookings with admin slots to mark availability
-    const updatedSlots = adminSlot.slots.map(slot => ({
-      start: slot.start,
-      end: slot.end,
-      isAvailable: !bookedSlots.includes(slot.start)
-    }));
-
-    // 6. Send response
-    return res.status(200).json({
-      date,
-      slots: updatedSlots
-    });
-
-  } catch (err) {
-    console.error("getAvailableSlots error:", err);
-    return res.status(500).json({ message: err.message || "Server Error" });
-  }
-};
-
-//Get Available Slots wab Based on Admin Settings & Bookings
-exports.getSlotsByDate = async (req, res) => {
-  try {
-    const { date } = req.query;
-
-    // Validate YYYY-MM-DD format
     if (!date || !moment(date, "YYYY-MM-DD", true).isValid()) {
       return res.status(400).json({
-        status: 400,
-        success: false,
-        message: "Invalid date format (YYYY-MM-DD)",
-        data: {}
+        status: 400, success: false, message: "Invalid date format (YYYY-MM-DD)", data: {}
       });
     }
 
-    // Normalize to UTC midnight for exact match
     const simpleDate = new Date(date + "T00:00:00.000Z");
-
-    // Get admin's working hours for the specific date
     const adminSlot = await AdminSlot.findOne({ date: simpleDate });
     if (!adminSlot) {
       return res.status(404).json({
-        status: 404,
-        success: false,
-        message: "No working hours set for this date",
-        data: {}
+        status: 404, success: false, message: "No working hours set for this date", data: {}
       });
     }
 
-    // Get all bookings for this date that are pending or approved
+    // Get bookings for the date
     const schedules = await TherapySchedule.find({
       sessions: {
         $elemMatch: {
-          date: {
-            $gte: simpleDate,
-            $lt: new Date(simpleDate.getTime() + 24 * 60 * 60 * 1000),
-          },
-        },
+          date: { $gte: simpleDate, $lt: new Date(simpleDate.getTime() + 24 * 60 * 60 * 1000) }
+        }
       },
-      isApproved: { $in: ["pending", "approved"] },
+      isApproved: { $in: ["pending", "approved"] }
     });
 
+    // Build list of booked start times
     const bookedSlots = [];
     schedules.forEach(schedule => {
       schedule.sessions.forEach(session => {
@@ -667,73 +595,73 @@ exports.getSlotsByDate = async (req, res) => {
       });
     });
 
-    // Merge bookings with admin slots to mark availability
-    const updatedSlots = adminSlot.slots.map(slot => ({
-      start: slot.start,
-      end: slot.end,
-      isAvailable: !bookedSlots.includes(slot.start)
+    // Mark slot availability per group
+    const slotGroups = adminSlot.slotGroups.map(group => ({
+      startTime: group.startTime,
+      endTime: group.endTime,
+      slotDuration: group.slotDuration,
+      slots: group.slots.map(slot => ({
+        start: slot.start,
+        end: slot.end,
+        isAvailable: !bookedSlots.includes(slot.start)
+      }))
     }));
 
-    // Response
     return res.status(200).json({
       status: 200,
       success: true,
       message: "Slots fetched successfully",
       data: {
         date,
-        slots: updatedSlots
+        slotGroups // changed key
       }
     });
 
   } catch (err) {
     console.error("getSlotsByDate error:", err);
     return res.status(500).json({
-      status: 500,
-      success: false,
-      message: err.message || "Server Error",
-      data: {}
+      status: 500, success: false, message: err.message || "Server Error", data: {}
     });
   }
 };
-
-
-// ADMIN: Set Working Hours & Generate Slots
  
+// ADMIN: Set Working Hours & Generate Slots for multiple slot groups
 exports.setWorkingHours = async (req, res) => {
   try {
-    const { date, startTime, endTime, slotDuration } = req.body;
+    const { date, slotGroups } = req.body; // slotGroups: array
 
-    // 1. Validate date format (YYYY-MM-DD)
     if (!moment(date, "YYYY-MM-DD", true).isValid()) {
-      return res.status(400).json({ message: "Invalid date format (YYYY-MM-DD)" });
+      return res.status(400).json({ status: 400, success: false, message: "Invalid date format (YYYY-MM-DD)", data: {} });
     }
-
-    // 2. Make date always simple: store as pure UTC midnight
     const simpleDate = new Date(date + "T00:00:00.000Z");
 
-    // 3. Generate slots (default to 60 minutes if not passed)
-    const slots = generateSlots(startTime, endTime, slotDuration || 60);
+    // Validate/Generate slots for each group
+    const processedSlotGroups = (slotGroups || []).map(group => {
+      // You can add more field validations here
+      const slots = generateSlots(group.startTime, group.endTime, group.slotDuration || 60);
+      return {
+        startTime: group.startTime,
+        endTime: group.endTime,
+        slotDuration: group.slotDuration || 60,
+        slots
+      };
+    });
 
-    // 4. Save or update the working hours for that date
+    // Upsert for this date
     const updated = await AdminSlot.findOneAndUpdate(
       { date: simpleDate },
-      {
-        date: simpleDate,
-        startTime,
-        endTime,
-        slotDuration: slotDuration || 60,
-        slots
-      },
+      { date: simpleDate, slotGroups: processedSlotGroups },
       { new: true, upsert: true }
     );
 
     return res.status(200).json({
+      status: 200,
       success: true,
       message: "Working hours saved",
       data: updated
     });
   } catch (err) {
     console.error("setWorkingHours error:", err);
-    return res.status(500).json({ message: err.message || "Server Error" });
+    return res.status(500).json({ status: 500, success: false, message: err.message || "Server Error", data: {} });
   }
 };

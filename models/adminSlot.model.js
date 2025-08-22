@@ -1,29 +1,48 @@
 const mongoose = require("mongoose");
 
-const AdminSlotSchema = new mongoose.Schema({
-  date: {
-    type: Date,
-    required: true
+const SlotGroupSchema = new mongoose.Schema(
+  {
+    startTime: {
+      type: String,
+      required: true,
+    },
+    endTime: {
+      type: String,
+      required: true,
+    },
+    slotDuration: {
+      type: Number,
+      default: 60,
+    },
+    slots: [
+      {
+        start: {
+          type: String,
+          required: true,
+        },
+        end: {
+          type: String,
+          required: true,
+        },
+        isAvailable: {
+          type: Boolean,
+          default: true,
+        },
+      },
+    ],
   },
-  startTime: {
-    type: String, // e.g. "09:00 AM"
-    required: true
+  { _id: false }
+);
+
+const AdminSlotSchema = new mongoose.Schema(
+  {
+    date: {
+      type: Date,
+      required: true,
+    },
+    slotGroups: [SlotGroupSchema],
   },
-  endTime: {
-    type: String, // e.g. "05:00 PM"
-    required: true
-  },
-  slotDuration: {
-    type: Number, // in minutes, default 60
-    default: 60
-  },
-  slots: [
-    {
-      start: { type: String, required: true },
-      end: { type: String, required: true },
-      isAvailable: { type: Boolean, default: true }
-    }
-  ]
-}, { timestamps: true });
+  { timestamps: true }
+);
 
 module.exports = mongoose.model("AdminSlot", AdminSlotSchema);
