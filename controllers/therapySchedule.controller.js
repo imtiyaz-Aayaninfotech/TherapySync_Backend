@@ -2,128 +2,71 @@ const TherapySchedule = require("../models/therapySchedule.model");
 const moment = require("moment");
 const AdminSlot = require("../models/adminSlot.model");
 const generateSlots = require("../utils/slotGenerator");
-
-
-// CLIENT: Create Schedule + Book Slot in ONE API
-// exports.createSchedule = async (req, res) => {
-//   try {
-//     const { sessions } = req.body;
-
-//     // 1. Validate sessions
-//     if (!sessions || !sessions.length) {
-//       return res.status(400).json({
-//         message: "Sessions array is required and cannot be empty",
-//       });
-//     }
-
-//     const firstSession = sessions[0];
-
-//     if (!firstSession.date || !firstSession.start || !firstSession.end) {
-//       return res.status(400).json({
-//         message: "Each session requires date, start, and end time",
-//       });
-//     }
-
-//     // 2. Normalize to UTC midnight
-//     const bookingDateStr = moment(firstSession.date).format("YYYY-MM-DD");
-//     const normalizedDate = new Date(bookingDateStr + "T00:00:00.000Z");
-//     const nextDay = new Date(normalizedDate.getTime() + 24 * 60 * 60 * 1000);
-//     const startSlot = firstSession.start;
-
-//     // 3. Try exact match first, then date range match for flexibility
-//     let adminSlot = await AdminSlot.findOne({ date: normalizedDate });
-
-//     if (!adminSlot) {
-//       // fallback for records stored with timezone offsets
-//       adminSlot = await AdminSlot.findOne({
-//         date: { $gte: normalizedDate, $lt: nextDay },
-//       });
-//     }
-
-//     if (!adminSlot) {
-//       return res.status(400).json({
-//         message: `Admin has not set working hours for ${bookingDateStr}`,
-//       });
-//     }
-
-//     const slot = adminSlot.slots.find(s => s.start === startSlot);
-//     if (!slot) {
-//       return res.status(400).json({ message: `Slot starting at ${startSlot} does not exist` });
-//     }
-
-//     // Check if the slot is occupied only by declined bookings
-//     if (!slot.isAvailable) {
-//       const existingBooking = await TherapySchedule.findOne({
-//         "sessions.date": { $gte: normalizedDate, $lt: nextDay },
-//         "sessions.start": startSlot,
-//         isApproved: { $in: ["pending", "approved"] }, // declined excluded
-//       });
-
-//       if (existingBooking) {
-//         return res.status(400).json({ message: `Slot starting at ${startSlot} is already booked` });
-//       }
-//     }
-
-//     const newSchedule = new TherapySchedule(req.body);
-//     const savedSchedule = await newSchedule.save();
-
-//     // 7. Mark slot as booked and save
-//     slot.isAvailable = false;
-//     await adminSlot.save();
-
-//     // 8. Response
-//     return res.status(200).json({
-//       status: 200,
-//       success: true,
-//       message: "Schedule created and slot booked successfully",
-//       data: savedSchedule,
-//     });
-
-//   } catch (err) {
-//     console.error("Error in createSchedule:", err);
-//     return res.status(500).json({
-//       status: 500,
-//       message: err.message || "An error occurred while creating the schedule",
-//     });
-//   }
-// };
+const Pricing = require("../models/Pricing.model");
 
 exports.createSchedule = async (req, res) => {
   try {
-    const { sessions } = req.body;
+    const { sessions, category_id, sessionPlan } = req.body;
 
-    // 1. Validate sessions
+    // 1. Validate sessions array existence and non-empty
     if (!sessions || !sessions.length) {
       return res.status(400).json({
         message: "Sessions array is required and cannot be empty",
       });
     }
+
     const firstSession = sessions[0];
+
+    // 2. Validate required fields on first session
     if (!firstSession.date || !firstSession.start || !firstSession.end) {
       return res.status(400).json({
         message: "Each session requires date, start, and end time",
       });
     }
 
-    // 2. Normalize to UTC midnight (DO THIS BEFORE ERRORS that reference normalizedDate)
-    let normalizedDate;
-    let bookingDateStr;
-
-    if (firstSession.date) {
-      // Ensure date is always YYYY-MM-DD (if you get date string)
-      bookingDateStr = moment(firstSession.date).format("YYYY-MM-DD");
-      normalizedDate = new Date(bookingDateStr + "T00:00:00.000Z");
-    } else {
-      // If date is missing, return error
+    // 3. Validate session count based on session plan
+    const sessionCount = sessions.length;
+    if (sessionPlan === "single" && sessionCount !== 1) {
       return res.status(400).json({
-        message: "Session date is missing"
+        message: "Single session plan requires exactly 1 session",
+      });
+    }
+    if (sessionPlan === "package" && ![5, 10, 20].includes(sessionCount)) {
+      return res.status(400).json({
+        message: "Package session plan requires 5, 10, or 20 sessions",
       });
     }
 
+    // 4. Calculate durationMinutes from first session start and end times using moment to parse 12-hour format with AM/PM
+    const startMoment = moment(firstSession.start, "hh:mm A");
+    const endMoment = moment(firstSession.end, "hh:mm A");
+    const durationMinutes = endMoment.diff(startMoment, "minutes");
+
+    if (durationMinutes <= 0) {
+      return res.status(400).json({ message: "Invalid session start and end times" });
+    }
+
+    // 5. Find corresponding Pricing document for the therapy category, duration, session count, active status
+    const pricing = await Pricing.findOne({
+      categoryId: category_id,
+      durationMinutes: durationMinutes,
+      sessionCount: sessionCount,
+      status: "active"
+    });
+
+    if (!pricing) {
+      return res.status(400).json({
+        message: "Pricing not found for selected category, duration, and session count",
+      });
+    }
+
+    // 6. Normalize date for slot and booking validation
+    const bookingDateStr = moment(firstSession.date).format("YYYY-MM-DD");
+    const normalizedDate = new Date(bookingDateStr + "T00:00:00.000Z");
     const nextDay = new Date(normalizedDate.getTime() + 24 * 60 * 60 * 1000);
     const startSlot = firstSession.start;
 
-    // 3. Try exact match first, then date range match for flexibility
+    // 7. Find AdminSlot for the normalized date or date range to verify working hours
     let adminSlot = await AdminSlot.findOne({ date: normalizedDate });
     if (!adminSlot) {
       adminSlot = await AdminSlot.findOne({
@@ -135,33 +78,52 @@ exports.createSchedule = async (req, res) => {
         message: `Admin has not set working hours for ${bookingDateStr}`,
       });
     }
-    const slot = adminSlot.slots.find(s => s.start === startSlot);
-    if (!slot) {
+
+    // 8. Find the correct slot inside the slotGroups of adminSlot
+    let foundSlot = null;
+    let foundGroup = null;
+    for (const group of adminSlot.slotGroups) {
+      const slot = group.slots.find((s) => s.start === startSlot);
+      if (slot) {
+        foundSlot = slot;
+        foundGroup = group;
+        break;
+      }
+    }
+    if (!foundSlot) {
       return res.status(400).json({ message: `Slot starting at ${startSlot} does not exist` });
     }
-    // Check if the slot is occupied only by declined bookings
-    if (!slot.isAvailable) {
+
+    // 9. Check if the slot is available or already booked in approved/pending TherapySchedules
+    if (!foundSlot.isAvailable) {
       const existingBooking = await TherapySchedule.findOne({
         "sessions.date": { $gte: normalizedDate, $lt: nextDay },
         "sessions.start": startSlot,
-        isApproved: { $in: ["pending", "approved"] }, // declined excluded
+        isApproved: { $in: ["pending", "approved"] },
       });
       if (existingBooking) {
         return res.status(400).json({ message: `Slot starting at ${startSlot} is already booked` });
       }
     }
 
-    // Reserve slot and save schedule
-    slot.isAvailable = false;
+    // 10. Mark the slot as unavailable and save adminSlot
+    foundSlot.isAvailable = false;
     await adminSlot.save();
 
+    // 11. Create new TherapySchedule using request data,
+    // including price from Pricing (totalPrice),
+    // initial payment state and status set to pending
     const newSchedule = new TherapySchedule({
       ...req.body,
+      price: pricing.totalPrice,
       isPaid: false,
-      status: "pending"
+      status: "pending",
     });
+
+    // 12. Save the schedule to DB
     const savedSchedule = await newSchedule.save();
 
+    // 13. Respond with success and saved schedule data
     return res.status(200).json({
       status: 200,
       success: true,
@@ -176,7 +138,6 @@ exports.createSchedule = async (req, res) => {
     });
   }
 };
-
 
 exports.getAllSchedules = async (req, res) => {
   try {
@@ -199,7 +160,6 @@ exports.getAllSchedules = async (req, res) => {
     });
   }
 };
-
 
 exports.getScheduleById = async (req, res) => {
   try {
@@ -461,44 +421,51 @@ exports.rescheduleSession = async (req, res) => {
 exports.rescheduleSession = async (req, res) => {
   try {
     const { newDate, start, end, reason, message } = req.body;
+
+    // 1. Validate mandatory fields for reschedule
     if (!newDate || !start || !end || !reason) {
       return res.status(400).json({ message: "newDate, start, end, and reason are required" });
     }
 
+    // 2. Find the schedule by ID
     const schedule = await TherapySchedule.findById(req.params.id);
     if (!schedule) {
       return res.status(404).json({ message: "Schedule not found" });
     }
 
-    // === PAYMENT CHECK ===
-    // Only allow reschedule if paymentType is 'full' or 'finalPayment'
-    if (!["full", "finalPayment"].includes(schedule.paymentType)) {
-      return res.status(403).json({
-        message: "Rescheduling allowed only after full or final payment is completed",
-      });
-    }
+    // 3. Allow reschedule only if paymentType is 'full' or 'finalPayment'
+    // if (!["full", "finalPayment"].includes(schedule.paymentType)) {
+    //   return res.status(403).json({
+    //     message: "Rescheduling allowed only after full or final payment is completed",
+    //   });
+    // }
 
-    // Get last session from schedule
+    // 4. Identify the last session to reschedule
     const lastSessionIndex = schedule.sessions.length - 1;
     const lastSession = schedule.sessions[lastSessionIndex];
 
+    // 5. Normalize old and new dates for querying AdminSlots
     const oldDateStr = moment(lastSession.date).format("YYYY-MM-DD");
     const newDateStr = moment(newDate).format("YYYY-MM-DD");
 
-    // Normalize dates for querying slots
     const oldNormalizedDate = new Date(oldDateStr + "T00:00:00.000Z");
     const newNormalizedDate = new Date(newDateStr + "T00:00:00.000Z");
     const nextDayNew = new Date(newNormalizedDate.getTime() + 24 * 60 * 60 * 1000);
 
-    // 1️⃣ Free up old slot
+    // 6. Free up the old slot: find old AdminSlot and mark the slot as available
     let oldSlotDoc = await AdminSlot.findOne({ date: oldNormalizedDate });
     if (oldSlotDoc) {
-      const oldSlot = oldSlotDoc.slots.find((s) => s.start === lastSession.start);
-      if (oldSlot) oldSlot.isAvailable = true;
+      for (const group of oldSlotDoc.slotGroups) {
+        const oldSlot = group.slots.find((s) => s.start === lastSession.start);
+        if (oldSlot) {
+          oldSlot.isAvailable = true;
+          break;
+        }
+      }
       await oldSlotDoc.save();
     }
 
-    // 2️⃣ Check new slot availability
+    // 7. Find AdminSlot document for the new date and verify availability
     let newSlotDoc = await AdminSlot.findOne({ date: newNormalizedDate });
     if (!newSlotDoc) {
       newSlotDoc = await AdminSlot.findOne({
@@ -509,7 +476,16 @@ exports.rescheduleSession = async (req, res) => {
       return res.status(400).json({ message: `Admin has not set working hours for ${newDateStr}` });
     }
 
-    const targetSlot = newSlotDoc.slots.find((s) => s.start === start);
+    // 8. Find target slot by start time in slotGroups
+    let targetSlot = null;
+    for (const group of newSlotDoc.slotGroups) {
+      const slot = group.slots.find((s) => s.start === start);
+      if (slot) {
+        targetSlot = slot;
+        break;
+      }
+    }
+
     if (!targetSlot) {
       return res.status(400).json({ message: `Slot starting at ${start} not found for ${newDateStr}` });
     }
@@ -517,11 +493,11 @@ exports.rescheduleSession = async (req, res) => {
       return res.status(400).json({ message: `Slot starting at ${start} is already booked` });
     }
 
-    // 3️⃣ Mark new slot booked
+    // 9. Mark new slot as booked and save
     targetSlot.isAvailable = false;
     await newSlotDoc.save();
 
-    // 4️⃣ Add reschedule history
+    // 10. Add reschedule history entry with old and new session dates, reason, and optional message
     schedule.rescheduleHistory.push({
       previousDate: lastSession.date,
       newDate,
@@ -529,16 +505,18 @@ exports.rescheduleSession = async (req, res) => {
       message: message || "",
     });
 
-    // 5️⃣ Update session details
+    // 11. Update the last session's date, start, and end times
     schedule.sessions[lastSessionIndex].date = newDate;
     schedule.sessions[lastSessionIndex].start = start;
     schedule.sessions[lastSessionIndex].end = end;
 
-    // 6️⃣ Update status
+    // 12. Change schedule status to 'rescheduled'
     schedule.status = "rescheduled";
 
+    // 13. Save updated schedule
     const updated = await schedule.save();
 
+    // 14. Return success with updated schedule data
     return res.status(200).json({
       status: 200,
       success: true,

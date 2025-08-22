@@ -18,17 +18,17 @@ const pricingSchema = new mongoose.Schema({
     default: 1,
     required: true
   },
-  totalPrice: { // Full price for all sessions together
+  totalPrice: { 
     type: Number,
     required: true,
     min: 0
   },
-  bookingFeeAmount: { // Amount required at booking
+  bookingFeeAmount: { 
     type: Number,
     required: true,
     min: 0
   },
-  finalPaymentAmount: { // Remainder to be paid after booking
+  finalPaymentAmount: { 
     type: Number,
     required: true,
     min: 0
@@ -48,7 +48,7 @@ const pricingSchema = new mongoose.Schema({
     type: Date,
     default: Date.now
   },
-  updatedAt: { // For audit/update history
+  updatedAt: { 
     type: Date,
     default: Date.now
   },
