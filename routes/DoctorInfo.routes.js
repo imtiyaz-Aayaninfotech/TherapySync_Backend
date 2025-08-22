@@ -11,6 +11,7 @@ router.post(
   upload.fields([
     { name: "image", maxCount: 1 },
     { name: "documents", maxCount: 1 }, // consentForm
+    { name: "video", maxCount: 1 },
   ]),
   uploadToS3,
   doctorController.createDoctor

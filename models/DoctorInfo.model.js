@@ -52,6 +52,7 @@ const DoctorInfoSchema = new mongoose.Schema({
       type: Date,
     },
   },
+  video: { type: String, default: null },
   createdAt: {
     type: Date,
     default: Date.now,

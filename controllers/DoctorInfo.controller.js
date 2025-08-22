@@ -8,6 +8,7 @@ exports.createDoctor = async (req, res) => {
 
     const image = s3Uploads.image?.[0] || null;
     const consentFormUrl = s3Uploads.documents?.[0] || null;
+    const videoUrl = s3Uploads.video?.[0] || null;
 
     const doctor = new Doctor({
       ...req.body,
@@ -17,6 +18,7 @@ exports.createDoctor = async (req, res) => {
         isAccepted: req.body.isAccepted === "true" || false,
         acceptedAt: req.body.isAccepted === "true" ? new Date() : null,
       },
+      video: videoUrl,
     });
 
     const savedDoctor = await doctor.save();
