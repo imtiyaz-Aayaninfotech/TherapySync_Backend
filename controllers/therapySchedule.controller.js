@@ -3,6 +3,7 @@ const moment = require("moment");
 const AdminSlot = require("../models/adminSlot.model");
 const generateSlots = require("../utils/slotGenerator");
 const Pricing = require("../models/Pricing.model");
+const Category = require('../models/category.model');
 
 exports.createSchedule = async (req, res) => {
   try {
@@ -600,6 +601,90 @@ exports.getAvailableSlots = async (req, res) => {
     return res.status(500).json({
       status: 500, success: false, message: err.message || "Server Error", data: {}
     });
+  }
+};
+exports.getSlotsByCategoryAndDate = async (req, res) => {
+  try {
+    const { date, categoryId } = req.query;
+    if (!date || !moment(date, "YYYY-MM-DD", true).isValid()) {
+      return res.status(400).json({ status: 400, success: false, message: "Invalid date format (YYYY-MM-DD)", data: {} });
+    }
+    if (!categoryId) {
+      return res.status(400).json({ status: 400, success: false, message: "categoryId is required", data: {} });
+    }
+
+    const category = await Category.findById(categoryId);
+    if (!category) {
+      return res.status(404).json({ status: 404, success: false, message: "Category not found", data: {} });
+    }
+
+    // Set session duration based on category type
+    let sessionDuration = 60; // default to 60
+    if (category.category === "Individual Therapy") {
+      sessionDuration = 50;
+    } else if (category.category === "Family Therapy") {
+      // Example: if you support multiple options, choose one or default
+      sessionDuration = 60; // or 90 if you want to extend logic
+    }
+
+    const simpleDate = new Date(date + "T00:00:00.000Z");
+    const adminSlot = await AdminSlot.findOne({ date: simpleDate });
+    if (!adminSlot) {
+      return res.status(404).json({ status: 404, success: false, message: "No working hours set for this date", data: {} });
+    }
+
+    // Filter slotGroups by sessionDuration
+    const slotGroups = adminSlot.slotGroups
+      .filter(group => group.slotDuration === sessionDuration)
+      .map(group => ({
+        startTime: group.startTime,
+        endTime: group.endTime,
+        slotDuration: group.slotDuration,
+        slots: group.slots
+      }));
+
+    // If Family Therapy and no slots with this duration found, show available slots message
+    if (category.category === "Family Therapy" && slotGroups.length === 0) {
+      return res.status(200).json({
+        status: 200,
+        success: true,
+        message: "Family Therapy session slots not specified, showing book and available slots",
+        data: { date, slotGroups: [] }
+      });
+    }
+
+    // Get bookings to mark slots unavailable
+    const schedules = await TherapySchedule.find({
+      sessions: { $elemMatch: { date: { $gte: simpleDate, $lt: new Date(simpleDate.getTime() + 24 * 60 * 60 * 1000) } } },
+      isApproved: { $in: ["pending", "approved"] }
+    });
+
+    const bookedSlots = [];
+    schedules.forEach(schedule => {
+      schedule.sessions.forEach(session => {
+        if (moment(session.date).format("YYYY-MM-DD") === date) bookedSlots.push(session.start);
+      });
+    });
+
+    // Mark availability
+    slotGroups.forEach(group => {
+      group.slots = group.slots.map(slot => ({
+        start: slot.start,
+        end: slot.end,
+        isAvailable: !bookedSlots.includes(slot.start)
+      }));
+    });
+
+    return res.status(200).json({
+      status: 200,
+      success: true,
+      message: "Slots fetched successfully",
+      data: { date, slotGroups }
+    });
+
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ status: 500, success: false, message: error.message || "Server Error", data: {} });
   }
 };
  
