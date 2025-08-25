@@ -4,8 +4,8 @@ const TherapySchedule = require("../models/therapySchedule.model");
 const DoctorInfo = require("../models/DoctorInfo.model");
 const User = require("../models/user.model");
 const Payment = require("../models/Payment.model");
-const path = require('path');
-const fs = require('fs');
+const path = require("path");
+const fs = require("fs");
 
 exports.downloadDetailedBillPdf = async (req, res) => {
   try {
@@ -14,144 +14,183 @@ exports.downloadDetailedBillPdf = async (req, res) => {
       return res.status(400).json({
         status: 400,
         success: false,
-        message: 'therapyScheduleId is required',
+        message: "therapyScheduleId is required",
         data: {},
       });
     }
 
     const scheduleId = new mongoose.Types.ObjectId(therapyScheduleId);
     const therapySchedule = await TherapySchedule.findById(scheduleId)
-      .populate('user', 'name region gender language')
-      .populate('category_id', 'category')
+      .populate("user", "name region gender language")
+      .populate("category_id", "category")
       .lean();
 
     if (!therapySchedule) {
       return res.status(404).json({
         status: 404,
         success: false,
-        message: 'Therapy schedule not found',
+        message: "Therapy schedule not found",
         data: {},
       });
     }
 
-    // Fetch active doctors' info - select only required fields
-    const doctors = await DoctorInfo.find({}, 'fullName title specialization experienceYears').lean();
+    const doctors = await DoctorInfo.find(
+      {},
+      "fullName title specialization experienceYears"
+    ).lean();
 
-    // Fetch payments for this therapy schedule with status "paid"
     const payments = await Payment.find({
       therapyScheduleId: scheduleId,
-      paymentStatus: 'paid',
+      paymentStatus: "paid",
     })
-      .select('paymentType price transactionId currency createdAt')
+      .select("paymentType price transactionId currency createdAt")
       .sort({ createdAt: 1 })
       .lean();
 
-    // Set HTTP headers for PDF file download
-    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader("Content-Type", "application/pdf");
     res.setHeader(
-      'Content-Disposition',
+      "Content-Disposition",
       `attachment; filename=Detailed_Bill_${therapyScheduleId}.pdf`
     );
 
-    // Create PDF document
-    const doc = new PDFDocument({ margin: 50, size: 'A4' });
+    const doc = new PDFDocument({ margin: 50, size: "A4" });
     doc.pipe(res);
 
-    // === Functions for reusable table drawing ===
     const tableX = 50;
     const tableWidth = doc.page.width - 100;
     const rowHeight = 25;
     const paddingX = 12;
 
     function drawTableHeader(y, text) {
-      doc.rect(tableX, y, tableWidth, rowHeight).fill('#34495e').stroke();
-      doc.fillColor('#FFFFFF').font('Helvetica-Bold').fontSize(14)
+      doc.rect(tableX, y, tableWidth, rowHeight).fill("#34495e").stroke();
+      doc
+        .fillColor("#FFFFFF")
+        .font("Helvetica-Bold")
+        .fontSize(14)
         .text(text, tableX + paddingX, y + 7);
     }
 
-    function drawKeyValue(y, key, value) {
-      doc.rect(tableX, y, tableWidth, rowHeight).stroke('#bdc3c7');
-      doc.fillColor('#2c3e50').font('Helvetica-Bold').fontSize(12)
+    // Draw key-value with optional font size and bold key flag
+    function drawKeyValue(y, key, value, fontSize = 12, isBoldKey = true) {
+      doc.rect(tableX, y, tableWidth, rowHeight).stroke("#bdc3c7");
+      doc
+        .fillColor("#2c3e50")
+        .font(isBoldKey ? "Helvetica-Bold" : "Helvetica")
+        .fontSize(fontSize)
         .text(key, tableX + paddingX, y + 7, { width: 150 });
-      doc.fillColor('#2c3e50').font('Helvetica').fontSize(12)
-        .text(value || '-', tableX + paddingX + 160, y + 7);
+      doc
+        .fillColor("#2c3e50")
+        .font("Helvetica")
+        .fontSize(fontSize)
+        .text(value || "-", tableX + paddingX + 160, y + 7);
     }
 
+    // Draw payment row with smaller fonts and shorter date format
     function drawPaymentRow(y, idx, payment) {
-      doc.rect(tableX, y, tableWidth, rowHeight).stroke('#bdc3c7');
-      doc.fillColor('#2980b9').font('Helvetica-Bold').fontSize(12)
-        .text(`${idx}. ${capitalize(payment.paymentType)}`, tableX + paddingX, y + 7, { width: 120 });
-      doc.fillColor('#2c3e50').font('Helvetica').fontSize(12)
-        .text(`Amount: ${payment.price.toFixed(2)} ${payment.currency}`, tableX + paddingX + 130, y + 7, { width: 130 });
-      doc.text(`Transaction ID: ${payment.transactionId}`, tableX + paddingX + 270, y + 7, { width: 190 });
-      doc.text(`Date: ${new Date(payment.createdAt).toLocaleString()}`, tableX + paddingX + 460, y + 7);
+      const shortDate = new Date(payment.createdAt).toLocaleDateString("en-GB"); // dd/mm/yyyy
+      doc.rect(tableX, y, tableWidth, rowHeight).stroke("#bdc3c7");
+      doc
+        .fillColor("#2980b9")
+        .font("Helvetica-Bold")
+        .fontSize(10)
+        .text(
+          `${idx}. ${capitalize(payment.paymentType)}`,
+          tableX + paddingX,
+          y + 7,
+          { width: 120 }
+        );
+      doc
+        .fillColor("#2c3e50")
+        .font("Helvetica")
+        .fontSize(10)
+        .text(
+          `Amount: ${payment.price.toFixed(2)} ${payment.currency}`,
+          tableX + paddingX + 130,
+          y + 7,
+          { width: 130 }
+        );
+      doc.text(
+        `Transaction ID: ${payment.transactionId}`,
+        tableX + paddingX + 250,
+        y + 3,
+        { width: 180 }
+      );
+
+      // Smaller and bold font for Date
+      doc
+        .fillColor("#2c3e50")
+        .font("Helvetica-Bold")
+        .fontSize(9)
+        .text(`Date: ${shortDate}`, tableX + paddingX + 400, y + 3, { width: 180 });
     }
 
     function capitalize(string) {
-      if (!string) return '';
+      if (!string) return "";
       return string.charAt(0).toUpperCase() + string.slice(1);
     }
 
-    // === Add logo at top center ===
-    const logoPath = path.join(__dirname, '../uploads/Expat Therapy Black.jpg');
+    const logoPath = path.join(__dirname, "../uploads/Expat Therapy Black.jpg");
     if (fs.existsSync(logoPath)) {
       doc.image(logoPath, doc.page.width / 2 - 90, 30, { width: 180 });
     }
 
-    // === Title ===
-    doc.moveDown(6);
-    doc.fillColor('#2c3e50').font('Helvetica-Bold').fontSize(24).text('Detailed Therapy Appointment Bill', {
-      align: 'center',
-    });
-    doc.moveDown(2);
+    doc.moveDown(3);
+    doc
+      .fillColor("#2c3e50")
+      .font("Helvetica-Bold")
+      .fontSize(24)
+      .text("Detailed Therapy Appointment Bill", {
+        align: "center",
+      });
+    doc.moveDown(1);
 
-    // Track Y position
     let currentY = doc.y;
 
-    // === User Info Section ===
-    drawTableHeader(currentY, 'User Information');
+    drawTableHeader(currentY, "User Information");
     currentY += rowHeight;
-    drawKeyValue(currentY, 'Name', therapySchedule.user.name);
+    drawKeyValue(currentY, "Name", therapySchedule.user.name);
     currentY += rowHeight;
-    drawKeyValue(currentY, 'Region', therapySchedule.user.region);
+    drawKeyValue(currentY, "Region", therapySchedule.user.region);
     currentY += rowHeight;
-    drawKeyValue(currentY, 'Gender', therapySchedule.user.gender);
+    drawKeyValue(currentY, "Gender", therapySchedule.user.gender);
     currentY += rowHeight;
-    drawKeyValue(currentY, 'Language', therapySchedule.user.language);
+    drawKeyValue(currentY, "Language", therapySchedule.user.language);
     currentY += rowHeight + 15;
 
-    // === Therapy Schedule Section ===
-    drawTableHeader(currentY, 'Therapy Schedule Details');
+    drawTableHeader(currentY, "Therapy Schedule Details");
     currentY += rowHeight;
-    drawKeyValue(currentY, 'Category', therapySchedule.category_id.category);
-    currentY += rowHeight;
-    drawKeyValue(currentY, 'Session Plan', capitalize(therapySchedule.sessionPlan));
+    drawKeyValue(currentY, "Category", therapySchedule.category_id.category);
     currentY += rowHeight;
     drawKeyValue(
       currentY,
-      'Booking Date',
-      therapySchedule.sessions?.[0]?.date
-        ? new Date(therapySchedule.sessions[0].date).toLocaleDateString()
-        : 'N/A'
+      "Session Plan",
+      capitalize(therapySchedule.sessionPlan)
     );
     currentY += rowHeight;
-    drawKeyValue(currentY, 'Notes', therapySchedule.notes);
+    drawKeyValue(
+      currentY,
+      "Booking Date",
+      therapySchedule.sessions?.[0]?.date
+        ? new Date(therapySchedule.sessions[0].date).toLocaleDateString()
+        : "N/A"
+    );
     currentY += rowHeight;
-    drawKeyValue(currentY, 'Status', capitalize(therapySchedule.status));
+    drawKeyValue(currentY, "Notes", therapySchedule.notes);
+    currentY += rowHeight;
+    drawKeyValue(currentY, "Status", capitalize(therapySchedule.status));
     currentY += rowHeight + 15;
 
-    // === Doctor Info Section ===
-    drawTableHeader(currentY, 'Doctor Information');
+    drawTableHeader(currentY, "Doctor Information");
     currentY += rowHeight;
     doctors.forEach((docInfo, idx) => {
       let docText = `${idx + 1}. ${docInfo.fullName} (${docInfo.title})`;
-      drawKeyValue(currentY, docText, `Specialization: ${docInfo.specialization}, Experience: ${docInfo.experienceYears} years`);
+      const valueText = `Specialization: ${docInfo.specialization}, Experience: ${docInfo.experienceYears} years`;
+      drawKeyValue(currentY, docText, valueText, 10, true);
       currentY += rowHeight;
     });
     currentY += 15;
 
-    // === Payment Details ===
-    drawTableHeader(currentY, 'Payment Details');
+    drawTableHeader(currentY, "Payment Details");
     currentY += rowHeight;
     payments.forEach((payment, idx) => {
       drawPaymentRow(currentY, idx + 1, payment);
@@ -159,32 +198,46 @@ exports.downloadDetailedBillPdf = async (req, res) => {
     });
     currentY += 15;
 
-    // === Total Paid ===
     const totalPaid = payments.reduce((sum, p) => sum + p.price, 0);
-    doc.rect(tableX, currentY, tableWidth, rowHeight).fill('#f39c12');
-    doc.fillColor('#fff').font('Helvetica-Bold').fontSize(16).text(`Total Paid: ${totalPaid.toFixed(2)} EUR`, tableX + paddingX, currentY + 7);
+    doc.rect(tableX, currentY, tableWidth, rowHeight).fill("#f39c12");
+    doc
+      .fillColor("#fff")
+      .font("Helvetica-Bold")
+      .fontSize(16)
+      .text(
+        `Total Paid: ${totalPaid.toFixed(2)} EUR`,
+        tableX + paddingX,
+        currentY + 7
+      );
 
-    // === Footer with page number ===
     const range = doc.bufferedPageRange();
     for (let i = 0; i < range.count; i++) {
       doc.switchToPage(i);
-      doc.fontSize(10).fillColor('#95a5a6').text(`Page ${i + 1} of ${range.count}`, doc.page.width - 100, doc.page.height - 30, { align: 'right' });
+      doc
+        .fontSize(10)
+        .fillColor("#95a5a6")
+        .text(
+          `Page ${i + 1} of ${range.count}`,
+          doc.page.width - 100,
+          doc.page.height - 30,
+          { align: "right" }
+        );
     }
 
     doc.end();
   } catch (err) {
-    console.error('downloadDetailedBillPdf error:', err);
+    console.error("downloadDetailedBillPdf error:", err);
     if (!res.headersSent) {
       return res.status(500).json({
         status: 500,
         success: false,
-        message: err.message || 'Server Error',
+        message: err.message || "Server Error",
         data: {},
       });
     }
     res.end();
   }
-}; 
+};
 
 exports.getAppointmentDetails = async (req, res) => {
   try {
@@ -271,7 +324,8 @@ exports.getAppointmentDetails = async (req, res) => {
       therapySchedule: {
         id: sch._id,
         dateBooking: sch.sessions?.[0]?.date || null,
-        sessions: sch.sessions?.map((s) => ({ start: s.start, end: s.end })) || [],
+        sessions:
+          sch.sessions?.map((s) => ({ start: s.start, end: s.end })) || [],
         sessionPlan: sch.sessionPlan,
         notes: sch.notes || "",
         region: sch.region,
@@ -299,4 +353,3 @@ exports.getAppointmentDetails = async (req, res) => {
     });
   }
 };
-
