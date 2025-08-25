@@ -1,92 +1,132 @@
 const Payment = require('../models/Payment.model');
 const { createPayment, getPaymentStatus } = require('../services/mollie.service');
 const TherapySchedule = require('../models/therapySchedule.model');
+const Pricing = require('../models/Pricing.model');
 
 
 // exports.initiateBookingPayment = async (req, res) => {
 //   try {
-//     const { therapyScheduleId, method } = req.body;
+//     const { therapyScheduleId, method, paymentOption } = req.body;
+
+//     // Validate input
+//     if (!therapyScheduleId || !method) {
+//       return res.status(400).json({ error: "TherapySchedule ID & method are required" });
+//     }
+
 //     const schedule = await TherapySchedule.findById(therapyScheduleId);
 //     if (!schedule) return res.status(404).json({ error: "Schedule not found" });
 
-//     console.log("CLIENT_URL:", process.env.CLIENT_URL);
-//     console.log("SERVER_URL:", process.env.SERVER_URL);
-//     console.log("MOLLIE_API_KEY:", process.env.MOLLIE_API_KEY);
-
+//     // Calculate time to session start
 //     const sessionStart = schedule.sessions[0].date;
-//     const hoursToSession = (new Date(sessionStart) - new Date()) / (1000 * 60 * 60);
-//     const totalPrice = schedule.price; // e.g. 500
+//     const now = new Date();
+//     const hoursToSession = (new Date(sessionStart) - now) / (1000 * 60 * 60);
+//     const totalPrice = 500;  // Always 500 for this product
 //     const bookingFeeAmount = 100;
-//     const finalPaymentAmount = totalPrice - bookingFeeAmount;
+//     const finalPaymentAmount = totalPrice - bookingFeeAmount; // 400
 
-//     if (!method) return res.status(400).json({ error: "Payment method required" });
-
-//     let payments = [];
-//     let molliePayment;
-//     try {
-//       if (hoursToSession > 48) {
-//         const bookingPayment = await Payment.create({
-//           category_id: schedule.category_id,
-//           userId: schedule.user,
-//           therapyScheduleId: schedule._id,
-//           sessionPlan: schedule.sessionPlan,
-//           price: bookingFeeAmount,
-//           method,
-//           paymentStatus: 'pending',
-//           paymentType: 'bookingFee',
-//           bookingFee: bookingFeeAmount,
-//         });
-
-//         molliePayment = await createPayment(
-//           bookingFeeAmount,
-//           `Booking fee for therapy schedule ${therapyScheduleId}`,
-//           `${process.env.CLIENT_URL}/payment-success?id=${bookingPayment._id}`,
-//           `${process.env.SERVER_URL}`,
-//           method // <-- pass method to Mollie
-//         );
-
-//         bookingPayment.transactionId = molliePayment.id;
-//         await bookingPayment.save();
-//         payments.push(bookingPayment);
-//         return res.json({
-//           checkoutUrl: molliePayment._links.checkout.href,
-//           payment: bookingPayment,
-//         });
-//       } else {
-//         // Only full payment allowed
-//         const fullPayment = await Payment.create({
-//           category_id: schedule.category_id,
-//           userId: schedule.user,
-//           therapyScheduleId: schedule._id,
-//           sessionPlan: schedule.sessionPlan,
-//           price: totalPrice,
-//           method,
-//           paymentStatus: 'pending',
-//           paymentType: 'full',
-//           bookingFee: bookingFeeAmount,
-//           finalPayment: finalPaymentAmount,
-//         });
-
-//         molliePayment = await createPayment(
-//           totalPrice,
-//           `Full payment for therapy schedule ${therapyScheduleId}`,
-//           `${process.env.CLIENT_URL}/payment-success?id=${fullPayment._id}`,
-//           `${process.env.SERVER_URL}`,
-//           method
-//         );
-
-//         fullPayment.transactionId = molliePayment.id;
-//         await fullPayment.save();
-//         payments.push(fullPayment);
-//         return res.json({
-//           checkoutUrl: molliePayment._links.checkout.href,
-//           payment: fullPayment,
-//         });
+//     // 1️⃣ Final payment logic for split (manual initiation)
+//     if (paymentOption === 'final') {
+//       // Check if booking fee has already been paid
+//       const paidBookingFee = await Payment.findOne({
+//         therapyScheduleId,
+//         paymentType: 'bookingFee',
+//         paymentStatus: 'paid'
+//       });
+//       if (!paidBookingFee) {
+//         return res.status(400).json({ error: 'Booking fee not paid yet or does not exist' });
 //       }
-//     } catch (mollieErr) {
-//       console.error("Mollie payment creation error:", mollieErr);
-//       return res.status(500).json({ error: mollieErr.message || "Mollie payment error occurred" });
+//       // Check if final payment already exists to avoid duplicates
+//       const existingFinalPayment = await Payment.findOne({
+//         therapyScheduleId,
+//         paymentType: 'finalPayment'
+//       });
+//       if (existingFinalPayment) {
+//         return res.status(400).json({ error: 'Final payment already initiated' });
+//       }
+
+//       // Initiate final payment
+//       const finalPayment = await Payment.create({
+//         category_id: schedule.category_id,
+//         userId: schedule.user,
+//         therapyScheduleId: schedule._id,
+//         sessionPlan: schedule.sessionPlan,
+//         price: finalPaymentAmount,
+//         method,
+//         paymentType: 'finalPayment',
+//         paymentStatus: 'pending'
+//       });
+//       const molliePayment = await createPayment(
+//         finalPaymentAmount,
+//         `Final payment for therapy schedule ${therapyScheduleId}`,
+//         `${process.env.CLIENT_URL}/payment-success?id=${finalPayment._id}`,
+//         `${process.env.SERVER_URL}`,
+//         method
+//       );
+//       finalPayment.transactionId = molliePayment.id;
+//       await finalPayment.save();
+//       return res.json({
+//         checkoutUrl: molliePayment._links.checkout.href,
+//         payment: finalPayment,
+//       });
 //     }
+
+//     // 2️⃣ Full payment case (either forced or customer chooses)
+//     if (hoursToSession <= 48 || paymentOption === 'full') {
+//       const fullPayment = await Payment.create({
+//         category_id: schedule.category_id,
+//         userId: schedule.user,
+//         therapyScheduleId: schedule._id,
+//         sessionPlan: schedule.sessionPlan,
+//         price: totalPrice,
+//         method,
+//         paymentStatus: 'pending',
+//         paymentType: 'full',
+//       });
+//       const molliePayment = await createPayment(
+//         totalPrice,
+//         `Full payment for therapy schedule ${therapyScheduleId}`,
+//         `${process.env.CLIENT_URL}/payment-success?id=${fullPayment._id}`,
+//         `${process.env.SERVER_URL}`,
+//         method
+//       );
+//       fullPayment.transactionId = molliePayment.id;
+//       await fullPayment.save();
+//       return res.json({
+//         checkoutUrl: molliePayment._links.checkout.href,
+//         payment: fullPayment,
+//       });
+//     }
+
+//     // 3️⃣ Initial split payment (booking fee)
+//     if (paymentOption === 'split') {
+//       const bookingPayment = await Payment.create({
+//         category_id: schedule.category_id,
+//         userId: schedule.user,
+//         therapyScheduleId: schedule._id,
+//         sessionPlan: schedule.sessionPlan,
+//         price: bookingFeeAmount,
+//         method,
+//         paymentStatus: 'pending',
+//         paymentType: 'bookingFee',
+//       });
+//       const molliePayment = await createPayment(
+//         bookingFeeAmount,
+//         `Booking fee for therapy schedule ${therapyScheduleId}`,
+//         `${process.env.CLIENT_URL}/payment-success?id=${bookingPayment._id}`,
+//         `${process.env.SERVER_URL}`,
+//         method
+//       );
+//       bookingPayment.transactionId = molliePayment.id;
+//       await bookingPayment.save();
+//       return res.json({
+//         checkoutUrl: molliePayment._links.checkout.href,
+//         payment: bookingPayment,
+//       });
+//     }
+
+//     // If none matched, invalid option
+//     return res.status(400).json({ error: 'Invalid payment option or conditions not met.' });
+
 //   } catch (err) {
 //     console.error("Error in initiateBookingPayment:", err);
 //     res.status(500).json({ error: err.message || 'Failed to initiate payment' });
@@ -105,62 +145,29 @@ exports.initiateBookingPayment = async (req, res) => {
     const schedule = await TherapySchedule.findById(therapyScheduleId);
     if (!schedule) return res.status(404).json({ error: "Schedule not found" });
 
-    // Calculate time to session start
-    const sessionStart = schedule.sessions[0].date;
-    const now = new Date();
-    const hoursToSession = (new Date(sessionStart) - now) / (1000 * 60 * 60);
-    const totalPrice = 500;  // Always 500 for this product
-    const bookingFeeAmount = 100;
-    const finalPaymentAmount = totalPrice - bookingFeeAmount; // 400
-
-    // 1️⃣ Final payment logic for split (manual initiation)
-    if (paymentOption === 'final') {
-      // Check if booking fee has already been paid
-      const paidBookingFee = await Payment.findOne({
-        therapyScheduleId,
-        paymentType: 'bookingFee',
-        paymentStatus: 'paid'
-      });
-      if (!paidBookingFee) {
-        return res.status(400).json({ error: 'Booking fee not paid yet or does not exist' });
-      }
-      // Check if final payment already exists to avoid duplicates
-      const existingFinalPayment = await Payment.findOne({
-        therapyScheduleId,
-        paymentType: 'finalPayment'
-      });
-      if (existingFinalPayment) {
-        return res.status(400).json({ error: 'Final payment already initiated' });
-      }
-
-      // Initiate final payment
-      const finalPayment = await Payment.create({
-        category_id: schedule.category_id,
-        userId: schedule.user,
-        therapyScheduleId: schedule._id,
-        sessionPlan: schedule.sessionPlan,
-        price: finalPaymentAmount,
-        method,
-        paymentType: 'finalPayment',
-        paymentStatus: 'pending'
-      });
-      const molliePayment = await createPayment(
-        finalPaymentAmount,
-        `Final payment for therapy schedule ${therapyScheduleId}`,
-        `${process.env.CLIENT_URL}/payment-success?id=${finalPayment._id}`,
-        `${process.env.SERVER_URL}`,
-        method
-      );
-      finalPayment.transactionId = molliePayment.id;
-      await finalPayment.save();
-      return res.json({
-        checkoutUrl: molliePayment._links.checkout.href,
-        payment: finalPayment,
-      });
+    // Pricing lookup
+    const pricing = await Pricing.findOne({
+      categoryId: schedule.category_id,
+      durationMinutes: schedule.sessions && schedule.sessions.length > 0 ?
+        moment(schedule.sessions[0].end, "hh:mm A").diff(moment(schedule.sessions[0].start, "hh:mm A"), "minutes") : undefined,
+      sessionCount: schedule.sessions.length,
+      status: "active"
+    });
+    if (!pricing) {
+      return res.status(400).json({ error: "Matching pricing not found." });
     }
 
-    // 2️⃣ Full payment case (either forced or customer chooses)
-    if (hoursToSession <= 48 || paymentOption === 'full') {
+    // For single session plans, always use total price, NO booking or final fee splits
+    const isSingleSession = schedule.sessionPlan === "single";
+    const totalPrice = pricing.totalPrice;
+    const bookingFeeAmount = pricing.bookingFeeAmount;
+    const finalPaymentAmount = pricing.finalPaymentAmount;
+
+    // 1️⃣ Single session: only full payment allowed
+    if (isSingleSession) {
+      if (paymentOption !== "full") {
+        return res.status(400).json({ error: "Single sessions require full payment." });
+      }
       const fullPayment = await Payment.create({
         category_id: schedule.category_id,
         userId: schedule.user,
@@ -169,7 +176,7 @@ exports.initiateBookingPayment = async (req, res) => {
         price: totalPrice,
         method,
         paymentStatus: 'pending',
-        paymentType: 'full',
+        paymentType: 'full'
       });
       const molliePayment = await createPayment(
         totalPrice,
@@ -186,7 +193,7 @@ exports.initiateBookingPayment = async (req, res) => {
       });
     }
 
-    // 3️⃣ Initial split payment (booking fee)
+    // 2️⃣ Package: Initial split payment (booking fee)
     if (paymentOption === 'split') {
       const bookingPayment = await Payment.create({
         category_id: schedule.category_id,
@@ -213,7 +220,79 @@ exports.initiateBookingPayment = async (req, res) => {
       });
     }
 
-    // If none matched, invalid option
+    // 3️⃣ Package: Final payment logic
+    if (paymentOption === 'final') {
+      // Ensure booking fee paid
+      const paidBookingFee = await Payment.findOne({
+        therapyScheduleId,
+        paymentType: 'bookingFee',
+        paymentStatus: 'paid'
+      });
+      if (!paidBookingFee) {
+        return res.status(400).json({ error: 'Booking fee not paid yet or does not exist' });
+      }
+      // Check for duplicate final payment
+      const existingFinalPayment = await Payment.findOne({
+        therapyScheduleId,
+        paymentType: 'finalPayment'
+      });
+      if (existingFinalPayment) {
+        return res.status(400).json({ error: 'Final payment already initiated' });
+      }
+      const finalPayment = await Payment.create({
+        category_id: schedule.category_id,
+        userId: schedule.user,
+        therapyScheduleId: schedule._id,
+        sessionPlan: schedule.sessionPlan,
+        price: finalPaymentAmount,
+        method,
+        paymentType: 'finalPayment',
+        paymentStatus: 'pending'
+      });
+      const molliePayment = await createPayment(
+        finalPaymentAmount,
+        `Final payment for therapy schedule ${therapyScheduleId}`,
+        `${process.env.CLIENT_URL}/payment-success?id=${finalPayment._id}`,
+        `${process.env.SERVER_URL}`,
+        method
+      );
+      finalPayment.transactionId = molliePayment.id;
+      await finalPayment.save();
+      return res.json({
+        checkoutUrl: molliePayment._links.checkout.href,
+        payment: finalPayment,
+      });
+    }
+
+    // 4️⃣ Package: Full payment case (customer chooses or less than 48h to session)
+    const hoursToSession = (new Date(schedule.sessions[0].date) - new Date()) / (1000 * 60 * 60);
+    if (hoursToSession <= 48 || paymentOption === 'full') {
+      const fullPayment = await Payment.create({
+        category_id: schedule.category_id,
+        userId: schedule.user,
+        therapyScheduleId: schedule._id,
+        sessionPlan: schedule.sessionPlan,
+        price: totalPrice,
+        method,
+        paymentStatus: 'pending',
+        paymentType: 'full',
+      });
+      const molliePayment = await createPayment(
+        totalPrice,
+        `Full payment for therapy schedule ${therapyScheduleId}`,
+        `${process.env.CLIENT_URL}/payment-success?id=${fullPayment._id}`,
+        `${process.env.SERVER_URL}`,
+        method
+      );
+      fullPayment.transactionId = molliePayment.id;
+      await fullPayment.save();
+      return res.json({
+        checkoutUrl: molliePayment._links.checkout.href,
+        payment: fullPayment,
+      });
+    }
+
+    // If none matched, invalid payment option
     return res.status(400).json({ error: 'Invalid payment option or conditions not met.' });
 
   } catch (err) {
@@ -221,6 +300,7 @@ exports.initiateBookingPayment = async (req, res) => {
     res.status(500).json({ error: err.message || 'Failed to initiate payment' });
   }
 };
+
 
 /*Confirms payment updates isPaid and paymentType
 Deletes schedule if no payment after 30 minutes (only if paymentType is null)
