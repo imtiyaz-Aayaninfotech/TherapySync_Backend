@@ -140,6 +140,133 @@ exports.createSchedule = async (req, res) => {
   }
 };
 
+// Admin Booking API
+exports.adminCreateBooking = async (req, res) => {
+  try {
+    const { sessions, category_id, sessionPlan, user, region } = req.body;
+
+    if (!sessions || !sessions.length) {
+      return res.status(400).json({ message: "Sessions array is required and cannot be empty" });
+    }
+    const firstSession = sessions[0];
+    if (!firstSession.date || !firstSession.start || !firstSession.end) {
+      return res.status(400).json({ message: "Each session requires date, start, and end time" });
+    }
+
+    const sessionCount = sessions.length;
+    if (sessionPlan === "single" && sessionCount !== 1) {
+      return res.status(400).json({ message: "Single session plan requires exactly 1 session" });
+    }
+    if (sessionPlan === "package" && ![5, 10, 20].includes(sessionCount)) {
+      return res.status(400).json({ message: "Package session plan requires 5, 10, or 20 sessions" });
+    }
+
+    const startMoment = moment(firstSession.start, "hh:mm A");
+    const endMoment = moment(firstSession.end, "hh:mm A");
+    const durationMinutes = endMoment.diff(startMoment, "minutes");
+    if (durationMinutes <= 0) {
+      return res.status(400).json({ message: "Invalid session start and end times" });
+    }
+
+    const pricing = await Pricing.findOne({
+      categoryId: category_id,
+      durationMinutes: durationMinutes,
+      sessionCount: sessionCount,
+      status: "active",
+    });
+
+    if (!pricing) {
+      return res.status(400).json({ message: "Pricing not found for selected category, duration, and session count" });
+    }
+
+    // Normalize date at UTC midnight (same as createSchedule)
+    const bookingDateStr = moment(firstSession.date).format("YYYY-MM-DD");
+    const normalizedDate = new Date(bookingDateStr + "T00:00:00.000Z");
+    const nextDay = new Date(normalizedDate.getTime() + 24 * 60 * 60 * 1000);
+
+    // Update sessions array's first session date to UTC normalized ISO string
+    const updatedSessions = sessions.map((session, index) => {
+      if (index === 0) {
+        return {
+          ...session,
+          date: normalizedDate.toISOString(),
+        };
+      }
+      // For package sessions, you can similarly normalize other sessions if needed
+      return session;
+    });
+
+    const startSlot = firstSession.start;
+
+    let adminSlot = await AdminSlot.findOne({ date: normalizedDate });
+    if (!adminSlot) {
+      adminSlot = await AdminSlot.findOne({
+        date: { $gte: normalizedDate, $lt: nextDay },
+      });
+    }
+
+    if (!adminSlot) {
+      return res.status(400).json({
+        message: `Admin has not set working hours for ${bookingDateStr}`,
+      });
+    }
+
+    let foundSlot = null;
+    let foundGroup = null;
+    for (const group of adminSlot.slotGroups) {
+      const slot = group.slots.find((s) => s.start === startSlot);
+      if (slot) {
+        foundSlot = slot;
+        foundGroup = group;
+        break;
+      }
+    }
+
+    if (!foundSlot) {
+      return res.status(400).json({ message: `Slot starting at ${startSlot} does not exist` });
+    }
+
+    if (!foundSlot.isAvailable) {
+      const existingBooking = await TherapySchedule.findOne({
+        "sessions.date": { $gte: normalizedDate, $lt: nextDay },
+        "sessions.start": startSlot,
+        isApproved: { $in: ["pending", "approved"] },
+      });
+      if (existingBooking) {
+        return res.status(400).json({ message: `Slot starting at ${startSlot} is already booked` });
+      }
+    }
+
+    foundSlot.isAvailable = false;
+    await adminSlot.save();
+
+    const newSchedule = new TherapySchedule({
+      ...req.body,
+      sessions: updatedSessions, // use updated sessions with normalized dates
+      price: pricing.totalPrice,
+      isPaid: true,
+      isApproved: "approved",
+      status: "scheduled",
+      paymentType: "full",
+    });
+
+    const savedSchedule = await newSchedule.save();
+
+    return res.status(200).json({
+      status: 200,
+      success: true,
+      message: "Admin booking created successfully with confirmed payment status",
+      data: savedSchedule,
+    });
+  } catch (err) {
+    console.error("Error in adminCreateBooking:", err);
+    return res.status(500).json({
+      status: 500,
+      message: err.message || "An error occurred while creating admin booking",
+    });
+  }
+};
+
 exports.getAllSchedules = async (req, res) => {
   try {
     const schedules = await TherapySchedule.find()

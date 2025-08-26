@@ -16,6 +16,7 @@ router.post("/admin/set-working-hours",controller.setWorkingHours);
 router.get("/available-slots", controller.getAvailableSlots);
 router.get("/getSlotsByCategoryAndDate", controller.getSlotsByCategoryAndDate);
 router.post("/", validator.body(scheduleValidator), controller.createSchedule);
+router.post("/adminCreateBooking", controller.adminCreateBooking);
 router.get("/", controller.getAllSchedules);
 router.get("/:id", controller.getScheduleById);
 router.get("/user/:id", controller.getUserById);
