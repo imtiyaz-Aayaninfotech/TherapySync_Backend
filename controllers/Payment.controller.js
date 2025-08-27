@@ -182,7 +182,8 @@ exports.initiateBookingPayment = async (req, res) => {
       const molliePayment = await createPayment(
         totalPrice,
         `Full payment for therapy schedule ${therapyScheduleId}`,
-        `${process.env.CLIENT_URL}/payment-success?id=${fullPayment._id}`,
+        // `${process.env.CLIENT_URL}/payment-success?id=${fullPayment._id}`,
+        `${process.env.CLIENT_URL}/payment.html?id=${fullPayment._id}`,
         `${process.env.SERVER_URL}`,
         method
       );
