@@ -117,25 +117,41 @@ exports.login = async (req, res) => {
 
     // 1. Find user
     const user = await User.findOne({ email });
-    if (!user) return res.status(404).json({ message: "User not found" });
+    if (!user) {
+      return res.status(404).json({
+        status: 404,
+        success: false,
+        message: "User not found",
+        data: [],
+      });
+    }
 
     // 2. Check if verified
     if (!user.isVerified) {
       return res.status(403).json({
+        status: 403,
+        success: false,
         message: "Your email is not verified. Please verify with OTP.",
+        data: [],
       });
     }
 
     // 3. Check password
     const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch)
-      return res.status(401).json({ message: "Incorrect password" });
+    if (!isMatch) {
+      return res.status(401).json({
+        status: 401,
+        success: false,
+        message: "Incorrect password",
+        data: [],
+      });
+    }
 
     // 4. Generate tokens
     const accessToken = generateAccessToken(user);
     const refreshToken = generateRefreshToken(user);
 
-    // ✅ 5. Save refresh token in DB
+    // 5. Save refresh token in DB
     user.refreshToken = refreshToken;
     await user.save();
 
