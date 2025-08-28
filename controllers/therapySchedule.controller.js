@@ -758,7 +758,7 @@ exports.getSlotsByCategoryAndDate = async (req, res) => {
     const simpleDate = new Date(date + 'T00:00:00.000Z');
     const adminSlot = await AdminSlot.findOne({ date: simpleDate });
     if (!adminSlot) {
-      return res.status(404).json({ status: 404, success: false, message: 'No working hours set for this date', data: {} });
+      return res.status(200).json({ status: 200, success: true, message: 'No working hours set for this date', data: {} });
     }
 
     const slotGroups = adminSlot.slotGroups
