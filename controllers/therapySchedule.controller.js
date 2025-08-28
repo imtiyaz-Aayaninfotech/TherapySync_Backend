@@ -24,6 +24,12 @@ exports.createSchedule = async (req, res) => {
         message: "Each session requires date, start, and end time",
       });
     }
+    // 2a. Check if first session date/time is not in the past
+    const firstSessionDateTimeStr = `${moment(firstSession.date).format("YYYY-MM-DD")} ${firstSession.start}`;
+    const firstSessionDateTime = moment(firstSessionDateTimeStr, "YYYY-MM-DD hh:mm A");
+    if (firstSessionDateTime.isBefore(moment())) {
+      return res.status(400).json({ message: "Cannot create schedule for past date/time" });
+    }
 
     // 3. Validate session count based on session plan
     const sessionCount = sessions.length;
@@ -548,43 +554,53 @@ exports.rescheduleSession = async (req, res) => {
 
 exports.rescheduleSession = async (req, res) => {
   try {
-    const { newDate, start, end, reason, message } = req.body;
+    const { newDate, start, end, reason, message, sessionIndex } = req.body;
 
-    // 1. Validate mandatory fields for reschedule
+    // 1. Validate input
     if (!newDate || !start || !end || !reason) {
       return res.status(400).json({ message: "newDate, start, end, and reason are required" });
     }
 
-    // 2. Find the schedule by ID
+    // Prevent rescheduling to a past date/time
+    const newDateTimeStr = `${newDate} ${start}`;
+    const newDateTime = moment(newDateTimeStr, "YYYY-MM-DD hh:mm A");
+    if (newDateTime.isBefore(moment())) {
+      return res.status(400).json({ message: "Cannot reschedule to a past date/time" });
+    }
+
+    // 2. Find schedule
     const schedule = await TherapySchedule.findById(req.params.id);
     if (!schedule) {
       return res.status(404).json({ message: "Schedule not found" });
     }
 
-    // 3. Allow reschedule only if paymentType is 'full' or 'finalPayment'
+    // 3. Only allow if fully paid
     // if (!["full", "finalPayment"].includes(schedule.paymentType)) {
     //   return res.status(403).json({
     //     message: "Rescheduling allowed only after full or final payment is completed",
     //   });
     // }
 
-    // 4. Identify the last session to reschedule
-    const lastSessionIndex = schedule.sessions.length - 1;
-    const lastSession = schedule.sessions[lastSessionIndex];
+    // 4. Determine which session to reschedule
+    let idx = sessionIndex;
+    if (idx === undefined || idx === null) {
+      // if index not provided, fallback to last session like old code
+      idx = schedule.sessions.length - 1;
+    }
+    if (idx < 0 || idx >= schedule.sessions.length) {
+      return res.status(400).json({ message: "Invalid session index for reschedule" });
+    }
 
-    // 5. Normalize old and new dates for querying AdminSlots
-    const oldDateStr = moment(lastSession.date).format("YYYY-MM-DD");
-    const newDateStr = moment(newDate).format("YYYY-MM-DD");
+    const sessionToReschedule = schedule.sessions[idx];
 
+    // 5. Free old slot
+    const oldDateStr = moment(sessionToReschedule.date).format("YYYY-MM-DD");
     const oldNormalizedDate = new Date(oldDateStr + "T00:00:00.000Z");
-    const newNormalizedDate = new Date(newDateStr + "T00:00:00.000Z");
-    const nextDayNew = new Date(newNormalizedDate.getTime() + 24 * 60 * 60 * 1000);
-
-    // 6. Free up the old slot: find old AdminSlot and mark the slot as available
     let oldSlotDoc = await AdminSlot.findOne({ date: oldNormalizedDate });
+
     if (oldSlotDoc) {
       for (const group of oldSlotDoc.slotGroups) {
-        const oldSlot = group.slots.find((s) => s.start === lastSession.start);
+        const oldSlot = group.slots.find((s) => s.start === sessionToReschedule.start);
         if (oldSlot) {
           oldSlot.isAvailable = true;
           break;
@@ -593,7 +609,11 @@ exports.rescheduleSession = async (req, res) => {
       await oldSlotDoc.save();
     }
 
-    // 7. Find AdminSlot document for the new date and verify availability
+    // 6. Check new slot availability
+    const newDateStr = moment(newDate).format("YYYY-MM-DD");
+    const newNormalizedDate = new Date(newDateStr + "T00:00:00.000Z");
+    const nextDayNew = new Date(newNormalizedDate.getTime() + 24 * 60 * 60 * 1000);
+
     let newSlotDoc = await AdminSlot.findOne({ date: newNormalizedDate });
     if (!newSlotDoc) {
       newSlotDoc = await AdminSlot.findOne({
@@ -604,7 +624,6 @@ exports.rescheduleSession = async (req, res) => {
       return res.status(400).json({ message: `Admin has not set working hours for ${newDateStr}` });
     }
 
-    // 8. Find target slot by start time in slotGroups
     let targetSlot = null;
     for (const group of newSlotDoc.slotGroups) {
       const slot = group.slots.find((s) => s.start === start);
@@ -613,7 +632,6 @@ exports.rescheduleSession = async (req, res) => {
         break;
       }
     }
-
     if (!targetSlot) {
       return res.status(400).json({ message: `Slot starting at ${start} not found for ${newDateStr}` });
     }
@@ -621,34 +639,31 @@ exports.rescheduleSession = async (req, res) => {
       return res.status(400).json({ message: `Slot starting at ${start} is already booked` });
     }
 
-    // 9. Mark new slot as booked and save
+    // 7. Mark new slot as used
     targetSlot.isAvailable = false;
     await newSlotDoc.save();
 
-    // 10. Add reschedule history entry with old and new session dates, reason, and optional message
+    // 8. Track history
     schedule.rescheduleHistory.push({
-      previousDate: lastSession.date,
+      previousDate: sessionToReschedule.date,
       newDate,
       reason,
       message: message || "",
     });
 
-    // 11. Update the last session's date, start, and end times
-    schedule.sessions[lastSessionIndex].date = newDate;
-    schedule.sessions[lastSessionIndex].start = start;
-    schedule.sessions[lastSessionIndex].end = end;
+    // 9. Replace only that session
+    schedule.sessions[idx].date = newDate;
+    schedule.sessions[idx].start = start;
+    schedule.sessions[idx].end = end;
 
-    // 12. Change schedule status to 'rescheduled'
     schedule.status = "rescheduled";
 
-    // 13. Save updated schedule
     const updated = await schedule.save();
 
-    // 14. Return success with updated schedule data
     return res.status(200).json({
       status: 200,
       success: true,
-      message: "Session rescheduled successfully",
+      message: `Session ${idx + 1} rescheduled successfully`,
       data: updated,
     });
   } catch (err) {
