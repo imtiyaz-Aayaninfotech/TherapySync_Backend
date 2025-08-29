@@ -746,6 +746,107 @@ exports.getAvailableSlots = async (req, res) => {
   }
 };
 
+// exports.getSlotsByCategoryAndDate = async (req, res) => {
+//   try {
+//     const { date, categoryId } = req.query;
+//     if (!date || !moment(date, 'YYYY-MM-DD', true).isValid()) {
+//       return res.status(400).json({ status: 400, success: false, message: 'Invalid date format (YYYY-MM-DD)', data: {} });
+//     }
+//     if (!categoryId) {
+//       return res.status(400).json({ status: 400, success: false, message: 'categoryId is required', data: {} });
+//     }
+
+//     const category = await Category.findById(categoryId);
+//     if (!category) {
+//       return res.status(404).json({ status: 404, success: false, message: 'Category not found', data: {} });
+//     }
+
+//     // Set session duration based on category type
+//     let sessionDuration = 60; // default to 60
+//     if (category.category === 'Individual Therapy') {
+//       sessionDuration = 50;
+//     } else if (category.category === 'Couples Therapy') {
+//       // You can customize to 60 or 90 as per your business rules
+//       sessionDuration = 60;
+//     }
+
+//     const simpleDate = new Date(date + 'T00:00:00.000Z');
+//     const adminSlot = await AdminSlot.findOne({ date: simpleDate });
+//     if (!adminSlot) {
+//       return res.status(200).json({ status: 200, success: true, message: 'No working hours set for this date', data: {} });
+//     }
+
+//     const slotGroups = adminSlot.slotGroups
+//       .filter(group => group.slotDuration === sessionDuration)
+//       .map(group => ({
+//         startTime: group.startTime,
+//         endTime: group.endTime,
+//         slotDuration: group.slotDuration,
+//         slots: group.slots,
+//       }));
+
+//     if (category.category === 'Family Therapy' && slotGroups.length === 0) {
+//       return res.status(200).json({
+//         status: 200,
+//         success: true,
+//         message: 'Family Therapy session slots not specified, showing book and available slots',
+//         data: { date, slotGroups: [] },
+//       });
+//     }
+
+//     const schedules = await TherapySchedule.find({
+//       sessions: { $elemMatch: { date: { $gte: simpleDate, $lt: new Date(simpleDate.getTime() + 24 * 60 * 60 * 1000) } } },
+//       isApproved: { $in: ['pending', 'approved'] },
+//     });
+
+//     const bookedSlots = [];
+//     schedules.forEach(schedule => {
+//       schedule.sessions.forEach(session => {
+//         if (moment(session.date).format('YYYY-MM-DD') === date) bookedSlots.push(session.start);
+//       });
+//     });
+
+//     slotGroups.forEach(group => {
+//       group.slots = group.slots.map(slot => ({
+//         start: slot.start,
+//         end: slot.end,
+//         isAvailable: !bookedSlots.includes(slot.start),
+//       }));
+//     });
+
+//     // Fetch pricing info for category + sessionDuration + active
+//     const pricingList = await Pricing.find({
+//       categoryId,
+//       durationMinutes: sessionDuration,
+//       status: 'active',
+//     }).sort({ sessionCount: 1 });
+
+//     // Format pricing info for response (optional customization)
+//     const pricing = pricingList.map(p => ({
+//       sessionCount: p.sessionCount,
+//       totalPrice: p.totalPrice,
+//       bookingFeeAmount: p.bookingFeeAmount,
+//       finalPaymentAmount: p.finalPaymentAmount,
+//       currency: p.currency,
+//       notes: p.notes,
+//     }));
+
+//     return res.status(200).json({
+//       status: 200,
+//       success: true,
+//       message: 'Slots and pricing fetched successfully',
+//       data: {
+//         date,
+//         slotGroups,
+//         pricing,
+//       },
+//     });
+//   } catch (error) {
+//     console.error(error);
+//     return res.status(500).json({ status: 500, success: false, message: error.message || 'Server Error', data: {} });
+//   }
+// };
+
 exports.getSlotsByCategoryAndDate = async (req, res) => {
   try {
     const { date, categoryId } = req.query;
@@ -762,12 +863,12 @@ exports.getSlotsByCategoryAndDate = async (req, res) => {
     }
 
     // Set session duration based on category type
-    let sessionDuration = 60; // default to 60
+    let sessionDurations = [60]; // default 60 minutes
+
     if (category.category === 'Individual Therapy') {
-      sessionDuration = 50;
+      sessionDurations = [50]; // 50 minutes for Individual Therapy
     } else if (category.category === 'Couples Therapy') {
-      // You can customize to 60 or 90 as per your business rules
-      sessionDuration = 60;
+      sessionDurations = [60, 90]; // 60 and 90 minutes for Couples Therapy
     }
 
     const simpleDate = new Date(date + 'T00:00:00.000Z');
@@ -777,7 +878,7 @@ exports.getSlotsByCategoryAndDate = async (req, res) => {
     }
 
     const slotGroups = adminSlot.slotGroups
-      .filter(group => group.slotDuration === sessionDuration)
+      .filter(group => sessionDurations.includes(group.slotDuration))
       .map(group => ({
         startTime: group.startTime,
         endTime: group.endTime,
@@ -817,7 +918,7 @@ exports.getSlotsByCategoryAndDate = async (req, res) => {
     // Fetch pricing info for category + sessionDuration + active
     const pricingList = await Pricing.find({
       categoryId,
-      durationMinutes: sessionDuration,
+      durationMinutes: { $in: sessionDurations },
       status: 'active',
     }).sort({ sessionCount: 1 });
 
