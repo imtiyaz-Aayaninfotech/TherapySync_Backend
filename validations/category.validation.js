@@ -8,6 +8,7 @@ exports.categoryValidation = Joi.object({
       "Family Therapy",
       "Group Therapy",
       "Executive Coaching",
+      "Couples Therapy",
       "Other"
     )
     .required(),
