@@ -765,7 +765,7 @@ exports.getSlotsByCategoryAndDate = async (req, res) => {
     let sessionDuration = 60; // default to 60
     if (category.category === 'Individual Therapy') {
       sessionDuration = 50;
-    } else if (category.category === 'Family Therapy') {
+    } else if (category.category === 'Couples Therapy') {
       // You can customize to 60 or 90 as per your business rules
       sessionDuration = 60;
     }
