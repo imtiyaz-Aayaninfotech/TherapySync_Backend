@@ -66,7 +66,8 @@ exports.register = async (req, res) => {
       gender,
       dateOfBirth,
       image: imageUrl,
-      region,
+      // region,
+      region: "Berlin",  // force Berlin here unconditionally
       otp: { code: otp, expiresAt: otpExpiry },
       isVerified: false,
     });

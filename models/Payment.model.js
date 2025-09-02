@@ -66,6 +66,10 @@ const paymentSchema = new mongoose.Schema({
   refund: {
     type: Number,
     default: 0
+  },
+  expiresAt: {  // auto delet cloume 
+    type: Date, 
+    default: null 
   }
 }, { timestamps: true });
 

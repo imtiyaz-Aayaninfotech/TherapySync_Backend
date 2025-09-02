@@ -308,11 +308,92 @@ exports.initiateBookingPayment = async (req, res) => {
 Deletes schedule if no payment after 30 minutes (only if paymentType is null)
 Updates schedule price by one or the sum of two payments*/
 
+// exports.paymentWebhook = async (req, res) => {
+//   try {
+//     const paymentId = req.body.id;
+//     const mollieData = await getPaymentStatus(paymentId);
+
+//     const updatedStatus =
+//       mollieData.status === "paid"
+//         ? "paid"
+//         : ["failed", "canceled"].includes(mollieData.status)
+//         ? "failed"
+//         : mollieData.status;
+
+//     const paymentRecord = await Payment.findOneAndUpdate(
+//       { transactionId: paymentId },
+//       { paymentStatus: updatedStatus },
+//       { new: true }
+//     );
+
+//     if (!paymentRecord) {
+//       return res.status(200).send("NO PAYMENT FOUND, IGNORED");
+//     }
+
+//     // Update TherapySchedule isPaid and paymentType if payment confirmed
+//     if (paymentRecord.paymentStatus === "paid") {
+//       await TherapySchedule.findByIdAndUpdate(paymentRecord.therapyScheduleId, {
+//         isPaid: true,
+//         paymentType: paymentRecord.paymentType,
+//       });
+//     }
+
+//     // Check TherapySchedule for auto-delete case if paymentType === null & 30 min passed
+//     const schedule = await TherapySchedule.findById(paymentRecord.therapyScheduleId);
+//     if (schedule.paymentType === null) {
+//       const creationTime = new Date(schedule.createdAt);
+//       const now = new Date();
+//       const diffMins = (now - creationTime) / (1000 * 60);
+//       if (diffMins >= 30) {
+//         await TherapySchedule.findByIdAndDelete(schedule._id);
+//         // Also delete all pending payments related to this schedule
+//         await Payment.deleteMany({ therapyScheduleId: schedule._id });
+//         return res.status(200).send("AUTO-DELETED TherapySchedule after 30 minutes with no payment");
+//       }
+//     }
+
+//     // Update TherapySchedule price based on Payment count & sum
+//     const payments = await Payment.find({
+//       therapyScheduleId: paymentRecord.therapyScheduleId,
+//       paymentStatus: "paid",
+//     });
+
+//     if (payments.length === 1) {
+//       // Update price with single payment price
+//       await TherapySchedule.findByIdAndUpdate(paymentRecord.therapyScheduleId, {
+//         price: payments[0].price,
+//       });
+//     } else if (payments.length === 2) {
+//       // Sum prices and update price
+//       const totalPrice = payments.reduce((sum, p) => sum + p.price, 0);
+//       await TherapySchedule.findByIdAndUpdate(paymentRecord.therapyScheduleId, {
+//         price: totalPrice,
+//       });
+//     }
+
+//     return res.status(200).send("OK");
+//   } catch (error) {
+//     console.error("Webhook error:", error);
+//     return res.status(500).send("Webhook processing failed");
+//   }
+// };
+
 exports.paymentWebhook = async (req, res) => {
   try {
     const paymentId = req.body.id;
     const mollieData = await getPaymentStatus(paymentId);
 
+    // Delete TherapySchedule on Mollie failure states
+    if (["authorized", "canceled", "expired", "failed"].includes(mollieData.status)) {
+      const paymentRecord = await Payment.findOne({ transactionId: paymentId });
+      if (paymentRecord) {
+        await TherapySchedule.findByIdAndDelete(paymentRecord.therapyScheduleId);
+        await Payment.deleteMany({ therapyScheduleId: paymentRecord.therapyScheduleId });
+      }
+      return res.status(200).send("TherapySchedule deleted due to payment status: " + mollieData.status);
+    }
+
+    // Update payment status
     const updatedStatus =
       mollieData.status === "paid"
         ? "paid"
@@ -325,12 +406,11 @@ exports.paymentWebhook = async (req, res) => {
       { paymentStatus: updatedStatus },
       { new: true }
     );
-
     if (!paymentRecord) {
       return res.status(200).send("NO PAYMENT FOUND, IGNORED");
     }
 
-    // Update TherapySchedule isPaid and paymentType if payment confirmed
+    // Mark TherapySchedule as paid if payment successful
     if (paymentRecord.paymentStatus === "paid") {
       await TherapySchedule.findByIdAndUpdate(paymentRecord.therapyScheduleId, {
         isPaid: true,
@@ -338,33 +418,29 @@ exports.paymentWebhook = async (req, res) => {
       });
     }
 
-    // Check TherapySchedule for auto-delete case if paymentType === null & 30 min passed
+    // Auto-delete TherapySchedule after 15 mins if unpaid and paymentType null
     const schedule = await TherapySchedule.findById(paymentRecord.therapyScheduleId);
-    if (schedule.paymentType === null) {
+    if (schedule && schedule.isPaid === false && schedule.paymentType === null) {
       const creationTime = new Date(schedule.createdAt);
       const now = new Date();
       const diffMins = (now - creationTime) / (1000 * 60);
-      if (diffMins >= 30) {
+      if (diffMins >= 15) {
         await TherapySchedule.findByIdAndDelete(schedule._id);
-        // Also delete all pending payments related to this schedule
         await Payment.deleteMany({ therapyScheduleId: schedule._id });
-        return res.status(200).send("AUTO-DELETED TherapySchedule after 30 minutes with no payment");
+        return res.status(200).send("AUTO-DELETED TherapySchedule after 15 minutes with no payment");
       }
     }
 
-    // Update TherapySchedule price based on Payment count & sum
+    // Update TherapySchedule price based on paid payments
     const payments = await Payment.find({
       therapyScheduleId: paymentRecord.therapyScheduleId,
       paymentStatus: "paid",
     });
-
     if (payments.length === 1) {
-      // Update price with single payment price
       await TherapySchedule.findByIdAndUpdate(paymentRecord.therapyScheduleId, {
         price: payments[0].price,
       });
     } else if (payments.length === 2) {
-      // Sum prices and update price
       const totalPrice = payments.reduce((sum, p) => sum + p.price, 0);
       await TherapySchedule.findByIdAndUpdate(paymentRecord.therapyScheduleId, {
         price: totalPrice,
