@@ -924,6 +924,7 @@ exports.getSlotsByCategoryAndDate = async (req, res) => {
 
     // Format pricing info for response (optional customization)
     const pricing = pricingList.map(p => ({
+      durationMinutes: p.durationMinutes,
       sessionCount: p.sessionCount,
       totalPrice: p.totalPrice,
       bookingFeeAmount: p.bookingFeeAmount,
