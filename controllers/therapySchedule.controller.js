@@ -5,6 +5,11 @@ const generateSlots = require("../utils/slotGenerator");
 const Pricing = require("../models/Pricing.model");
 const Category = require('../models/category.model');
 
+/*
+ Mongo shell RUN one time 
+ db.therapyschedules.createIndex({ "expiresAt": 1 }, { expireAfterSeconds: 0 })
+*/
+
 exports.createSchedule = async (req, res) => {
   try {
     const { sessions, category_id, sessionPlan } = req.body;
@@ -120,11 +125,13 @@ exports.createSchedule = async (req, res) => {
     // 11. Create new TherapySchedule using request data,
     // including price from Pricing (totalPrice),
     // initial payment state and status set to pending
+    const expiryDate = Date.now() + 15 * 60 * 1000; // 15 minutes in ms
     const newSchedule = new TherapySchedule({
       ...req.body,
       price: pricing.totalPrice,
       isPaid: false,
       status: "pending",
+      expiresAt: expiryDate,
     });
 
     // 12. Save the schedule to DB

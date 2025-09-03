@@ -121,6 +121,11 @@ const TherapyScheduleSchema = new mongoose.Schema(
       enum: [null, "full", "bookingFee", "finalPayment"],
       default: null,
     },
+    expiresAt: {
+      type: Date,
+      default: null,
+      index: { expireAfterSeconds: 0 }, // TTL index auto-deletes at this time
+    },
   },
   {
     timestamps: true,
