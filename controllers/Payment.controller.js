@@ -390,7 +390,12 @@ exports.paymentWebhook = async (req, res) => {
         await TherapySchedule.findByIdAndDelete(paymentRecord.therapyScheduleId);
         await Payment.deleteMany({ therapyScheduleId: paymentRecord.therapyScheduleId });
       }
-      return res.status(200).send("TherapySchedule deleted due to payment status: " + mollieData.status);
+      return res.status(200).json({
+        status: 200,
+        success: true,
+        message: `TherapySchedule deleted due to payment status: ${mollieData.status}`,
+        data: {}
+      });
     }
 
     // Update payment status
@@ -407,7 +412,12 @@ exports.paymentWebhook = async (req, res) => {
       { new: true }
     );
     if (!paymentRecord) {
-      return res.status(200).send("NO PAYMENT FOUND, IGNORED");
+      return res.status(200).json({
+        status: 200,
+        success: true,
+        message: "NO PAYMENT FOUND, IGNORED",
+        data: {}
+      });
     }
 
     // Mark TherapySchedule as paid if payment successful
@@ -428,7 +438,12 @@ exports.paymentWebhook = async (req, res) => {
       if (diffMins >= 15) {
         await TherapySchedule.findByIdAndDelete(schedule._id);
         await Payment.deleteMany({ therapyScheduleId: schedule._id });
-        return res.status(200).send("AUTO-DELETED TherapySchedule after 15 minutes with no payment");
+        return res.status(200).json({
+          status: 200,
+          success: true,
+          message: "AUTO-DELETED TherapySchedule after 15 minutes with no payment",
+          data: {}
+        });
       }
     }
 
@@ -448,10 +463,20 @@ exports.paymentWebhook = async (req, res) => {
       });
     }
 
-    return res.status(200).send("OK");
+    return res.status(200).json({
+      status: 200,
+      success: true,
+      message: "OK",
+      data: {}
+    });
   } catch (error) {
     console.error("Webhook error:", error);
-    return res.status(500).send("Webhook processing failed");
+    return res.status(500).json({
+      status: 500,
+      success: false,
+      message: "Webhook processing failed",
+      data: {}
+    });
   }
 };
 
