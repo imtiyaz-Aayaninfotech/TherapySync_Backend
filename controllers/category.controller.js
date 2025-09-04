@@ -46,10 +46,38 @@ exports.addCategory = async (req, res) => {
 };
 
 // Get All Categories by region Only
+// exports.getAllCategories = async (req, res) => {
+//   try {
+//     const { region } = req.query;
+
+//     if (!region) {
+//       return res.status(400).json({
+//         status: 400,
+//         success: false,
+//         message: "region is required"
+//       });
+//     }
+
+//     const categories = await Category.find({ region });
+
+//     res.status(200).json({
+//       status: 200,
+//       success: true,
+//       message: "Categories fetched successfully",
+//       data: categories
+//     });
+//   } catch (err) {
+//     res.status(500).json({
+//       status: 500,
+//       success: false,
+//       message: "Fetch error",
+//       error: err.message
+//     });
+//   }
+// };
 exports.getAllCategories = async (req, res) => {
   try {
     const { region } = req.query;
-
     if (!region) {
       return res.status(400).json({
         status: 400,
@@ -57,9 +85,12 @@ exports.getAllCategories = async (req, res) => {
         message: "region is required"
       });
     }
-
-    const categories = await Category.find({ region });
-
+    // Unify Berlin and Thessaloniki response
+    let searchRegions = [region];
+    if (region === 'Berlin' || region === 'Thessaloniki') {
+      searchRegions = ['Berlin', 'Thessaloniki'];
+    }
+    const categories = await Category.find({ region: { $in: searchRegions } });
     res.status(200).json({
       status: 200,
       success: true,
