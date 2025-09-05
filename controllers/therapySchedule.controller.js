@@ -922,6 +922,21 @@ exports.getSlotsByCategoryAndDate = async (req, res) => {
       }));
     });
 
+    // Add this code after setting isAvailable for slots, before fetching pricing:
+
+const today = moment().startOf('day');
+const requestedDay = moment(date, 'YYYY-MM-DD');
+if (requestedDay.isSame(today, 'day')) {
+  const now = moment();
+  slotGroups.forEach(group => {
+    group.slots = group.slots.filter(slot => {
+      const slotStart = moment(slot.start, 'hh:mm A'); // 12-hour AM/PM format
+      return slotStart.isAfter(now);
+    });
+  });
+}
+
+
     // Fetch pricing info for category + sessionDuration + active
     const pricingList = await Pricing.find({
       categoryId,
