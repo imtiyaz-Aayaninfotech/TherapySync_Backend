@@ -323,6 +323,7 @@ exports.getAppointmentDetails = async (req, res) => {
     const responseData = therapySchedules.map((sch) => ({
       therapySchedule: {
         id: sch._id,
+        category_id: sch.category_id,
         dateBooking: sch.sessions?.[0]?.date || null,
         sessions:
           sch.sessions?.map((s) => ({ start: s.start, end: s.end })) || [],
