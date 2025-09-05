@@ -121,7 +121,9 @@ exports.downloadDetailedBillPdf = async (req, res) => {
         .fillColor("#2c3e50")
         .font("Helvetica-Bold")
         .fontSize(9)
-        .text(`Date: ${shortDate}`, tableX + paddingX + 400, y + 3, { width: 180 });
+        .text(`Date: ${shortDate}`, tableX + paddingX + 400, y + 3, {
+          width: 180,
+        });
     }
 
     function capitalize(string) {
@@ -326,7 +328,12 @@ exports.getAppointmentDetails = async (req, res) => {
         category_id: sch.category_id,
         dateBooking: sch.sessions?.[0]?.date || null,
         sessions:
-          sch.sessions?.map((s) => ({ start: s.start, end: s.end })) || [],
+          sch.sessions?.map((s) => ({
+            date: s.date, 
+            start: s.start,
+            end: s.end,
+          })) || [],
+
         sessionPlan: sch.sessionPlan,
         notes: sch.notes || "",
         region: sch.region,
