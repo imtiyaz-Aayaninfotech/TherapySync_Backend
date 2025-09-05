@@ -210,7 +210,7 @@ exports.initiateBookingPayment = async (req, res) => {
       const molliePayment = await createPayment(
         bookingFeeAmount,
         `Booking fee for therapy schedule ${therapyScheduleId}`,
-        `${process.env.CLIENT_URL}/payment-success?id=${bookingPayment._id}`,
+        `${process.env.CLIENT_URL}/payment.html?id=${bookingPayment._id}`,
         `${process.env.SERVER_URL}`,
         method
       );
@@ -254,7 +254,7 @@ exports.initiateBookingPayment = async (req, res) => {
       const molliePayment = await createPayment(
         finalPaymentAmount,
         `Final payment for therapy schedule ${therapyScheduleId}`,
-        `${process.env.CLIENT_URL}/payment-success?id=${finalPayment._id}`,
+        `${process.env.CLIENT_URL}/payment.html?id=${finalPayment._id}`,
         `${process.env.SERVER_URL}`,
         method
       );
@@ -282,7 +282,7 @@ exports.initiateBookingPayment = async (req, res) => {
       const molliePayment = await createPayment(
         totalPrice,
         `Full payment for therapy schedule ${therapyScheduleId}`,
-        `${process.env.CLIENT_URL}/payment-success?id=${fullPayment._id}`,
+        `${process.env.CLIENT_URL}/payment.html?id=${fullPayment._id}`,
         `${process.env.SERVER_URL}`,
         method
       );
