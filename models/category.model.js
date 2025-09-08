@@ -5,7 +5,7 @@ const categorySchema = new mongoose.Schema({
     type: String,
     required: true,
     trim: true,
-    enum: ['Individual Therapy','Family Therapy','Executive Coaching','Couples Therapy']
+    enum: ['Individual Therapy','Executive Coaching','Couples Therapy']
   },
   type: {
     type: String,
