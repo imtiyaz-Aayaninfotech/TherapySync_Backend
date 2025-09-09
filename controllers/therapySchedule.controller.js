@@ -373,17 +373,20 @@ exports.updateApprovalStatus = async (req, res) => {
   try {
     const { status, reason } = req.body;
 
-    // Build update object
-    const updateData = { isApproved: status };
+    // Build update object to update both isApproved and status
+    const updateData = {
+      isApproved: status,
+      status: status,
+    };
 
-    // If declined, store reason
+    // If declining, require a reason and set declineReason
     if (status === "declined") {
       if (!reason) {
         return res.status(400).json({ message: "Reason is required when declining" });
       }
       updateData.declineReason = reason;
     } else {
-      // Clear declineReason if approving or pending
+      // Clear declineReason when not declined
       updateData.declineReason = "";
     }
 
@@ -400,9 +403,10 @@ exports.updateApprovalStatus = async (req, res) => {
     res.status(200).json({
       status: 200,
       success: true,
-      message: `Approval status updated to ${status}`,
+      message: `Approval and status updated to ${status}`,
       data: updated,
     });
+
   } catch (err) {
     res.status(400).json({
       status: 400,

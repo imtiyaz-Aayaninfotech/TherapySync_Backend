@@ -105,7 +105,7 @@ const TherapyScheduleSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ["pending", "scheduled", "completed", "rescheduled", "cancelled"],
+      enum: ["pending", "approved", "completed", "rescheduled", "declined"],
       default: "pending",
     },
     completedAt: {
