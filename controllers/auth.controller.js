@@ -112,10 +112,82 @@ exports.verifyOtp = async (req, res) => {
   }
 };
 
+// exports.login = async (req, res) => {
+//   try {
+//     const { email, password } = req.body;
+
+//     // 1. Find user
+//     const user = await User.findOne({ email });
+//     if (!user) {
+//       return res.status(404).json({
+//         status: 404,
+//         success: false,
+//         message: "User not found",
+//         data: [],
+//       });
+//     }
+
+//     // 2. Check if verified
+//     if (!user.isVerified) {
+//       return res.status(403).json({
+//         status: 403,
+//         success: false,
+//         message: "Your email is not verified. Please verify with OTP.",
+//         data: [],
+//       });
+//     }
+
+//     // 3. Check password
+//     const isMatch = await bcrypt.compare(password, user.password);
+//     if (!isMatch) {
+//       return res.status(400).json({
+//         status: 400,
+//         success: false,
+//         message: "Incorrect password",
+//         data: [],
+//       });
+//     }
+
+//     // 4. Generate tokens
+//     const accessToken = generateAccessToken(user);
+//     const refreshToken = generateRefreshToken(user);
+
+//     // 5. Save refresh token in DB
+//     user.refreshToken = refreshToken;
+//     await user.save();
+
+//     // 6. Send tokens
+//     return res.status(200).json({
+//       status: 200,
+//       success: true,
+//       message: "Login successful",
+//       data: [
+//         {
+//           accessToken,
+//           refreshToken,
+//           user: {
+//             id: user._id,
+//             name: user.name,
+//             email: user.email,
+//             mobileNumber: user.mobileNumber,
+//           },
+//         },
+//       ],
+//     });
+//   } catch (error) {
+//     console.error("Login Error:", error);
+//     return res.status(500).json({
+//       status: 500,
+//       success: false,
+//       message: "Internal server error",
+//       data: [],
+//     });
+//   }
+// };
+
 exports.login = async (req, res) => {
   try {
     const { email, password } = req.body;
-
     // 1. Find user
     const user = await User.findOne({ email });
     if (!user) {
@@ -126,13 +198,55 @@ exports.login = async (req, res) => {
         data: [],
       });
     }
-
     // 2. Check if verified
+    // if (!user.isVerified) {
+    //   const now = new Date();
+    //   // Check if OTP still valid, if yes, do not resend but ask user to verify
+    //   if (user.otp && user.otp.expiresAt > now) {
+    //     return res.status(403).json({
+    //       status: 403,
+    //       success: false,
+    //       message: "Your email is not verified. Please verify with OTP sent earlier.",
+    //       data: [],
+    //     });
+    //   }
+    //   // Generate new OTP and expiry
+    //   const otp = generateOTP();
+    //   const otpExpiry = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
+    //   user.otp = { code: otp, expiresAt: otpExpiry };
+    //   await user.save();
+    //   // Optionally send email OTP here when sendOtpEmail utility is ready
+    //   await sendOtpEmail(user.email, otp, "Login OTP Verification");
+    //   return res.status(403).json({
+    //     status: 403,
+    //     success: false,
+    //     message: "Your email is not verified. New OTP sent to your email.",
+    //     data: [],
+    //   });
+    // }
+
     if (!user.isVerified) {
+      const now = new Date();
+      // Check if OTP still valid, if yes, do not resend but ask user to verify
+      if (user.otp && user.otp.expiresAt > now) {
+        return res.status(403).json({
+          status: 403,
+          success: false,
+          message: "Your email is not verified. Please verify with OTP sent earlier.",
+          data: [],
+        });
+      }
+      // Generate new hardcoded OTP and expiry
+      const otp = "123456";  // hardcoded OTP
+      const otpExpiry = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
+      user.otp = { code: otp, expiresAt: otpExpiry };
+      await user.save();
+      // Optionally send OTP email if needed
+      // await sendOtpEmail(user.email, otp, "Login OTP Verification");
       return res.status(403).json({
         status: 403,
         success: false,
-        message: "Your email is not verified. Please verify with OTP.",
+        message: "Your email is not verified. New OTP sent to your email.",
         data: [],
       });
     }
@@ -147,15 +261,12 @@ exports.login = async (req, res) => {
         data: [],
       });
     }
-
     // 4. Generate tokens
     const accessToken = generateAccessToken(user);
     const refreshToken = generateRefreshToken(user);
-
     // 5. Save refresh token in DB
     user.refreshToken = refreshToken;
     await user.save();
-
     // 6. Send tokens
     return res.status(200).json({
       status: 200,
