@@ -1,11 +1,27 @@
 const CoachingEnquiry = require('../models/CoachingEnquiry.model');
 const Category = require('../models/category.model');
+const { coachingEnquirySchema } = require('../validations/coachingEnquiry.validator');
 
 // Submit Coaching Enquiry
 exports.submitCoachingEnquiry = async (req, res) => {
   try {
-    const { category_id, name, email, phoneNumber, gender, organisation } = req.body;
+    // Validate request body with Joi, collect all errors (abortEarly: false)
+    const { error } = coachingEnquirySchema.validate(req.body, { abortEarly: false });
+    if (error) {
+      // Map each validation error to an object with field and message
+      const fieldErrors = error.details.map((err) => ({
+        field: err.path.join('.'),
+        message: err.message
+      }));
+      return res.status(400).json({
+        status: 400,
+        success: false,
+        message: 'Validation errors found.',
+        data: fieldErrors
+      });
+    }
 
+    const { category_id, name, email, phoneNumber, gender, organisation } = req.body;
     const category = await Category.findById(category_id);
     if (!category || category.category !== 'Executive Coaching') {
       return res.status(400).json({
@@ -24,9 +40,7 @@ exports.submitCoachingEnquiry = async (req, res) => {
       gender,
       organisation
     });
-
     await enquiry.save();
-
     return res.status(201).json({
       status: 201,
       success: true,
