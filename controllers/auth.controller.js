@@ -76,7 +76,26 @@ exports.register = async (req, res) => {
 
     // await sendOtpEmail(email, otp, "Account Registration");
 
-    res.status(201).json({ message: "User registered. OTP sent to email." });
+    // res.status(201).json({ message: "User registered. OTP sent to email." });
+    return res.status(201).json({
+  status: 201,
+  success: true,
+  message: "User registered. OTP sent to email.",
+  data: {
+    isVerified: false,
+    otpSent: true,
+    user: {
+      email: newUser.email,
+      name: newUser.name,
+      phoneNumber: newUser.phoneNumber,
+      gender: newUser.gender,
+      dateOfBirth: newUser.dateOfBirth,
+      region: newUser.region,
+      image: newUser.image,
+      isVerified: newUser.isVerified
+    }
+  }
+});
   } catch (error) {
     console.error("Register Error:", error);
     res.status(500).json({ message: "Server error" });
@@ -203,8 +222,8 @@ exports.login = async (req, res) => {
     //   const now = new Date();
     //   // Check if OTP still valid, if yes, do not resend but ask user to verify
     //   if (user.otp && user.otp.expiresAt > now) {
-    //     return res.status(403).json({
-    //       status: 403,
+    //     return res.status(200).json({
+    //       status: 200,
     //       success: false,
     //       message: "Your email is not verified. Please verify with OTP sent earlier.",
     //       data: [],
@@ -217,8 +236,8 @@ exports.login = async (req, res) => {
     //   await user.save();
     //   // Optionally send email OTP here when sendOtpEmail utility is ready
     //   await sendOtpEmail(user.email, otp, "Login OTP Verification");
-    //   return res.status(403).json({
-    //     status: 403,
+    //   return res.status(200).json({
+    //     status: 200,
     //     success: false,
     //     message: "Your email is not verified. New OTP sent to your email.",
     //     data: [],
@@ -229,8 +248,8 @@ exports.login = async (req, res) => {
       const now = new Date();
       // Check if OTP still valid, if yes, do not resend but ask user to verify
       if (user.otp && user.otp.expiresAt > now) {
-        return res.status(403).json({
-          status: 403,
+        return res.status(200).json({
+          status: 200,
           success: false,
           message: "Your email is not verified. Please verify with OTP sent earlier.",
           data: [],
@@ -243,8 +262,8 @@ exports.login = async (req, res) => {
       await user.save();
       // Optionally send OTP email if needed
       // await sendOtpEmail(user.email, otp, "Login OTP Verification");
-      return res.status(403).json({
-        status: 403,
+      return res.status(200).json({
+        status: 200,
         success: false,
         message: "Your email is not verified. New OTP sent to your email.",
         data: [],
@@ -281,6 +300,7 @@ exports.login = async (req, res) => {
             name: user.name,
             email: user.email,
             mobileNumber: user.mobileNumber,
+            isVerified:user.isVerified,
           },
         },
       ],
