@@ -425,8 +425,6 @@ exports.paymentWebhook = async (req, res) => {
       await TherapySchedule.findByIdAndUpdate(paymentRecord.therapyScheduleId, {
         isPaid: true,
         paymentType: paymentRecord.paymentType,
-        isApproved:approved,
-        status:approved,
         expiresAt: null, // stop auto-deletion
       });
     }
