@@ -426,6 +426,8 @@ exports.paymentWebhook = async (req, res) => {
         isPaid: true,
         paymentType: paymentRecord.paymentType,
         expiresAt: null, // stop auto-deletion
+        isApproved: "approved", 
+        status: "approved"     
       });
     }
 
