@@ -3,6 +3,9 @@ const Payment = require('../models/Payment.model');
 const { createPayment, getPaymentStatus } = require('../services/mollie.service');
 const TherapySchedule = require('../models/therapySchedule.model');
 const Pricing = require('../models/Pricing.model');
+const Meeting = require('../models/meeting.model');
+const User = require('../models/user.model');
+const { createZoomMeeting } = require('../services/zoom.service');
 
 
 // exports.initiateBookingPayment = async (req, res) => {
@@ -411,6 +414,7 @@ exports.paymentWebhook = async (req, res) => {
       { paymentStatus: updatedStatus },
       { new: true }
     );
+
     if (!paymentRecord) {
       return res.status(200).json({
         status: 200,
@@ -426,9 +430,43 @@ exports.paymentWebhook = async (req, res) => {
         isPaid: true,
         paymentType: paymentRecord.paymentType,
         expiresAt: null, // stop auto-deletion
-        isApproved: "approved", 
-        status: "approved"     
+        isApproved: "approved",
+        status: "approved"
       });
+
+      // Fetch related user & schedule
+      const user = await User.findById(paymentRecord.userId);
+      const schedule = await TherapySchedule.findById(paymentRecord.therapyScheduleId);
+
+      if (user && schedule && schedule.sessions && schedule.sessions.length > 0) {
+        // Create Zoom meetings for all sessions
+        for (const session of schedule.sessions) {
+          const sessionDateTime = moment(session.date)
+            .hour(parseInt(session.start.split(':')[0]))
+            .minute(parseInt(session.start.split(':')[1]));
+
+          try {
+            const zoomMeeting = await createZoomMeeting(
+              `Therapy Session for ${user.name}`,
+              sessionDateTime.toISOString()
+            );
+
+            // Save Meeting document for each session
+            await Meeting.create({
+              user: user._id,
+              therapySchedule: schedule._id,
+              payment: paymentRecord._id,
+              meetingLink: zoomMeeting.join_url,
+              scheduledAt: sessionDateTime.toDate(),
+              status: 'scheduled'
+            });
+
+          } catch (zoomErr) {
+            console.error(`Zoom meeting creation failed for session on ${sessionDateTime.toISOString()}`, zoomErr);
+            // continue with next session
+          }
+        }
+      }
     }
 
     // Auto-delete TherapySchedule after 15 mins if unpaid and paymentType null

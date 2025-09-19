@@ -6,11 +6,6 @@ const meetingSchema = new mongoose.Schema({
     ref: 'User',
     required: true
   },
-  category: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Category',
-    required: true
-  },
   therapySchedule: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'TherapySchedule',
