@@ -316,6 +316,22 @@ Updates schedule price by one or the sum of two payments*/
 //     const paymentId = req.body.id;
 //     const mollieData = await getPaymentStatus(paymentId);
 
+//     // Delete TherapySchedule on Mollie failure states
+//     if (["authorized", "canceled", "expired", "failed"].includes(mollieData.status)) {
+//       const paymentRecord = await Payment.findOne({ transactionId: paymentId });
+//       if (paymentRecord) {
+//         await TherapySchedule.findByIdAndDelete(paymentRecord.therapyScheduleId);
+//         await Payment.deleteMany({ therapyScheduleId: paymentRecord.therapyScheduleId });
+//       }
+//       return res.status(200).json({
+//         status: 200,
+//         success: true,
+//         message: `TherapySchedule deleted due to payment status: ${mollieData.status}`,
+//         data: {}
+//       });
+//     }
+
+//     // Update payment status
 //     const updatedStatus =
 //       mollieData.status === "paid"
 //         ? "paid"
@@ -330,54 +346,107 @@ Updates schedule price by one or the sum of two payments*/
 //     );
 
 //     if (!paymentRecord) {
-//       return res.status(200).send("NO PAYMENT FOUND, IGNORED");
+//       return res.status(200).json({
+//         status: 200,
+//         success: true,
+//         message: "NO PAYMENT FOUND, IGNORED",
+//         data: {}
+//       });
 //     }
 
-//     // Update TherapySchedule isPaid and paymentType if payment confirmed
+//     // Mark TherapySchedule as paid if payment successful
 //     if (paymentRecord.paymentStatus === "paid") {
 //       await TherapySchedule.findByIdAndUpdate(paymentRecord.therapyScheduleId, {
 //         isPaid: true,
 //         paymentType: paymentRecord.paymentType,
+//         expiresAt: null, // stop auto-deletion
+//         isApproved: "approved",
+//         status: "approved"
 //       });
-//     }
 
-//     // Check TherapySchedule for auto-delete case if paymentType === null & 30 min passed
-//     const schedule = await TherapySchedule.findById(paymentRecord.therapyScheduleId);
-//     if (schedule.paymentType === null) {
-//       const creationTime = new Date(schedule.createdAt);
-//       const now = new Date();
-//       const diffMins = (now - creationTime) / (1000 * 60);
-//       if (diffMins >= 30) {
-//         await TherapySchedule.findByIdAndDelete(schedule._id);
-//         // Also delete all pending payments related to this schedule
-//         await Payment.deleteMany({ therapyScheduleId: schedule._id });
-//         return res.status(200).send("AUTO-DELETED TherapySchedule after 30 minutes with no payment");
+//       // Fetch related user & schedule
+//       const user = await User.findById(paymentRecord.userId);
+//       const schedule = await TherapySchedule.findById(paymentRecord.therapyScheduleId);
+
+//       if (user && schedule && schedule.sessions && schedule.sessions.length > 0) {
+//         // Create Zoom meetings for all sessions
+//         for (const session of schedule.sessions) {
+//           const sessionDateTime = moment(session.date)
+//             .hour(parseInt(session.start.split(':')[0]))
+//             .minute(parseInt(session.start.split(':')[1]));
+
+//           try {
+//             const zoomMeeting = await createZoomMeeting(
+//               `Therapy Session for ${user.name}`,
+//               sessionDateTime.toISOString()
+//             );
+
+//             // Save Meeting document for each session
+//             await Meeting.create({
+//               user: user._id,
+//               therapySchedule: schedule._id,
+//               payment: paymentRecord._id,
+//               meetingLink: zoomMeeting.join_url,
+//               scheduledAt: sessionDateTime.toDate(),
+//               status: 'scheduled'
+//             });
+
+//           } catch (zoomErr) {
+//             console.error(`Zoom meeting creation failed for session on ${sessionDateTime.toISOString()}`, zoomErr);
+//             // continue with next session
+//           }
+//         }
 //       }
 //     }
 
-//     // Update TherapySchedule price based on Payment count & sum
+//     // Auto-delete TherapySchedule after 15 mins if unpaid and paymentType null
+//     const schedule = await TherapySchedule.findById(paymentRecord.therapyScheduleId);
+//     if (schedule && schedule.isPaid === false && schedule.paymentType === null) {
+//       const creationTime = new Date(schedule.createdAt);
+//       const now = new Date();
+//       const diffMins = (now - creationTime) / (1000 * 60);
+//       if (diffMins >= 15) {
+//         await TherapySchedule.findByIdAndDelete(schedule._id);
+//         await Payment.deleteMany({ therapyScheduleId: schedule._id });
+//         return res.status(200).json({
+//           status: 200,
+//           success: true,
+//           message: "AUTO-DELETED TherapySchedule after 15 minutes with no payment",
+//           data: {}
+//         });
+//       }
+//     }
+
+//     // Update TherapySchedule price based on paid payments
 //     const payments = await Payment.find({
 //       therapyScheduleId: paymentRecord.therapyScheduleId,
 //       paymentStatus: "paid",
 //     });
-
 //     if (payments.length === 1) {
-//       // Update price with single payment price
 //       await TherapySchedule.findByIdAndUpdate(paymentRecord.therapyScheduleId, {
 //         price: payments[0].price,
 //       });
 //     } else if (payments.length === 2) {
-//       // Sum prices and update price
 //       const totalPrice = payments.reduce((sum, p) => sum + p.price, 0);
 //       await TherapySchedule.findByIdAndUpdate(paymentRecord.therapyScheduleId, {
 //         price: totalPrice,
 //       });
 //     }
 
-//     return res.status(200).send("OK");
+//     return res.status(200).json({
+//       status: 200,
+//       success: true,
+//       message: "OK",
+//       data: {}
+//     });
 //   } catch (error) {
 //     console.error("Webhook error:", error);
-//     return res.status(500).send("Webhook processing failed");
+//     return res.status(500).json({
+//       status: 500,
+//       success: false,
+//       message: "Webhook processing failed",
+//       data: {}
+//     });
 //   }
 // };
 
@@ -439,30 +508,50 @@ exports.paymentWebhook = async (req, res) => {
       const schedule = await TherapySchedule.findById(paymentRecord.therapyScheduleId);
 
       if (user && schedule && schedule.sessions && schedule.sessions.length > 0) {
-        // Create Zoom meetings for all sessions
         for (const session of schedule.sessions) {
-          const sessionDateTime = moment(session.date)
-            .hour(parseInt(session.start.split(':')[0]))
-            .minute(parseInt(session.start.split(':')[1]));
+          // Parse session start time with AM/PM handling
+          const parseTime = (date, timeStr) => {
+            return moment(date).hour(0).minute(0).second(0).millisecond(0)
+              .add(moment.duration(timeStr.toUpperCase()));
+          };
+
+          // Improved parsing using moment, considering AM/PM
+          function parseSessionTime(date, timeStr) {
+            const timeMoment = moment(timeStr, ['h:mm A']);
+            return moment(date).set({
+              hour: timeMoment.get('hour'),
+              minute: timeMoment.get('minute'),
+              second: 0,
+              millisecond: 0
+            });
+          }
+
+          const startTime = parseSessionTime(session.date, session.start);
+          const endTime = parseSessionTime(session.date, session.end);
 
           try {
             const zoomMeeting = await createZoomMeeting(
               `Therapy Session for ${user.name}`,
-              sessionDateTime.toISOString()
+              startTime.toISOString()
             );
 
-            // Save Meeting document for each session
+            // Save Meeting document with scheduled start and end
             await Meeting.create({
               user: user._id,
               therapySchedule: schedule._id,
               payment: paymentRecord._id,
               meetingLink: zoomMeeting.join_url,
-              scheduledAt: sessionDateTime.toDate(),
-              status: 'scheduled'
+              scheduledAt: startTime.toDate(),
+              scheduledEnd: endTime.toDate(),
+              status: 'scheduled',
+              startedAt: null,
+              endedAt: null,
+              notes: '',
+              attended: false
             });
 
           } catch (zoomErr) {
-            console.error(`Zoom meeting creation failed for session on ${sessionDateTime.toISOString()}`, zoomErr);
+            console.error(`Zoom meeting creation failed for session on ${startTime.toISOString()}`, zoomErr);
             // continue with next session
           }
         }
