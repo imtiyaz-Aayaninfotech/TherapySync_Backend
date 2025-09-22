@@ -1,60 +1,51 @@
-const https = require('https');
-const generateZoomJWT = require('../utils/zoomJwt.util');
+const axios = require('axios');
+const qs = require('querystring'); // Not required for axios v1+, use URLSearchParams in new Node if preferred
 
-function createZoomMeeting(topic, scheduledAt) {
-  const token = generateZoomJWT();
-  const data = JSON.stringify({
-    topic: topic,
+// These values must be stored securely (use env variables)
+const CLIENT_ID = process.env.ZOOM_CLIENT_ID;
+const CLIENT_SECRET = process.env.ZOOM_CLIENT_SECRET;
+const ACCOUNT_ID = process.env.ZOOM_ACCOUNT_ID;
+
+async function getZoomOAuthToken() {
+  const tokenUrl = 'https://zoom.us/oauth/token';
+  const basicAuth = Buffer.from(`${CLIENT_ID}:${CLIENT_SECRET}`).toString('base64');
+  const data = {
+    grant_type: 'account_credentials',
+    account_id: ACCOUNT_ID
+  };
+  const response = await axios.post(tokenUrl, qs.stringify(data), {
+    headers: {
+      'Authorization': `Basic ${basicAuth}`,
+      'Content-Type': 'application/x-www-form-urlencoded'
+    }
+  });
+  return response.data.access_token;
+}
+
+async function createZoomMeeting(topic, scheduledAt) {
+  const token = await getZoomOAuthToken(); // Fetch fresh token each time
+  const body = {
+    topic,
     type: 2,
     start_time: new Date(scheduledAt).toISOString(),
     duration: 40,
-    timezone: 'Europe/Berlin',
+    timezone: 'Asia/Kolkata', // use your preferred timezone
     settings: {
       host_video: true,
-      participant_video: true,
-    },
-  });
-
-  const options = {
-    hostname: 'api.zoom.us',
-    path: '/v2/users/me/meetings',
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
-      'Content-Length': data.length,
-    },
+      participant_video: true
+    }
   };
-
-  return new Promise((resolve, reject) => {
-    const req = https.request(options, (res) => {
-      let responseBody = '';
-
-      res.on('data', (chunk) => {
-        responseBody += chunk;
-      });
-
-      res.on('end', () => {
-        if (res.statusCode >= 200 && res.statusCode < 300) {
-          try {
-            const parsedData = JSON.parse(responseBody);
-            resolve(parsedData);
-          } catch (e) {
-            reject(new Error('Failed to parse Zoom meeting response'));
-          }
-        } else {
-          reject(new Error(`Zoom API request failed: ${res.statusCode} - ${responseBody}`));
-        }
-      });
-    });
-
-    req.on('error', (e) => {
-      reject(e);
-    });
-
-    req.write(data);
-    req.end();
-  });
+  const response = await axios.post(
+    'https://api.zoom.us/v2/users/me/meetings',
+    body,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    }
+  );
+  return response.data;
 }
 
 module.exports = { createZoomMeeting };
