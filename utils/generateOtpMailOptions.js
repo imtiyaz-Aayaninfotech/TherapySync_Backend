@@ -4,7 +4,7 @@ module.exports = function generateOtpMailOptions(
   purpose = "Verification"
 ) {
   return {
-    from: "ai083.development@gmail.com",
+    from: "ai081.development@gmail.com",
     to: email,
     subject: `Your One-Time Password (OTP) – TherapySync`,
     text: `Your OTP code is ${otp}. It expires in 5 minutes.`,

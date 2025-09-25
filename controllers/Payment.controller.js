@@ -6,6 +6,7 @@ const Pricing = require('../models/Pricing.model');
 const Meeting = require('../models/meeting.model');
 const User = require('../models/user.model');
 const { createZoomMeeting } = require('../services/zoom.service');
+const sendSessionSummaryEmail = require('../utils/sendSessionSummaryEmail');
 
 
 // exports.initiateBookingPayment = async (req, res) => {
@@ -508,10 +509,12 @@ exports.paymentWebhook = async (req, res) => {
       const schedule = await TherapySchedule.findById(paymentRecord.therapyScheduleId);
 
       if (user && schedule && schedule.sessions && schedule.sessions.length > 0) {
+        const sessionDetails = [];
+
         for (const session of schedule.sessions) {
-          // Combine to Date object (if you want for indexing/sorting)
-          const startTime = moment(`${moment(session.date).format('YYYY-MM-DD')} ${session.start}`, 'YYYY-MM-DD hh:mm A').toDate();
-          const endTime = moment(`${moment(session.date).format('YYYY-MM-DD')} ${session.end}`, 'YYYY-MM-DD hh:mm A').toDate();
+          const sessionDateStr = moment(session.date).format('YYYY-MM-DD');
+          const startTime = moment(`${sessionDateStr} ${session.start}`, 'YYYY-MM-DD hh:mm A').toDate();
+          const endTime = moment(`${sessionDateStr} ${session.end}`, 'YYYY-MM-DD hh:mm A').toDate();
 
           try {
             const zoomMeeting = await createZoomMeeting(
@@ -519,18 +522,16 @@ exports.paymentWebhook = async (req, res) => {
               startTime.toISOString()
             );
 
-            // Save Meeting document, include raw session values
             await Meeting.create({
               user: user._id,
               therapySchedule: schedule._id,
               payment: paymentRecord._id,
               meetingLink: zoomMeeting.join_url,
-              // Store both combined Date and original session fields:
+              scheduledDate: session.date,
+              scheduledStart: session.start,
+              scheduledEndTime: session.end,
               scheduledAt: startTime,
               scheduledEnd: endTime,
-              scheduledDate: session.date,       // exact original session.date
-              scheduledStart: session.start,     // e.g. "09:00 AM"
-              scheduledEndTime: session.end,     // e.g. "10:00 AM"
               status: 'scheduled',
               startedAt: null,
               endedAt: null,
@@ -538,15 +539,25 @@ exports.paymentWebhook = async (req, res) => {
               attended: false
             });
 
+            sessionDetails.push({
+              date: moment(session.date).format('dddd, MMMM Do YYYY'),
+              start: session.start,
+              end: session.end,
+              meetingLink: zoomMeeting.join_url
+            });
           } catch (zoomErr) {
             console.error(`Zoom meeting creation failed for session on ${startTime.toISOString()}`, zoomErr);
             // continue with next session
           }
         }
+
+        // Send combined session summary email (non-blocking)
+        sendSessionSummaryEmail(user.email, user.name, sessionDetails)
+          .catch(err => console.error('Error sending session summary email:', err));
       }
     }
 
-    // Auto-delete TherapySchedule after 15 mins if unpaid and paymentType null
+    // Auto-delete unpaid schedules after 15 mins
     const schedule = await TherapySchedule.findById(paymentRecord.therapyScheduleId);
     if (schedule && schedule.isPaid === false && schedule.paymentType === null) {
       const creationTime = new Date(schedule.createdAt);
