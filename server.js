@@ -35,6 +35,7 @@ const websiteEnquiryRoutes = require("./routes/enquiry.routes");
 const pricing = require("./routes/pricing.routes");
 const ApptDetails = require("./routes/AppointmentDetails.routes");
 const dashboardRoutes = require('./routes/dashboard.routes');
+const meetingRoutes = require('./routes/meeting.routes');
 
 app.use(express.json());
 app.use("/api/admin", adminRoutes);
@@ -55,6 +56,7 @@ app.use("/api/webEnquiry", websiteEnquiryRoutes);
 app.use("/api/pricing", pricing);
 app.use("/api/ApptDetails", ApptDetails);
 app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/meetings', meetingRoutes);
 
 
 

@@ -509,25 +509,9 @@ exports.paymentWebhook = async (req, res) => {
 
       if (user && schedule && schedule.sessions && schedule.sessions.length > 0) {
         for (const session of schedule.sessions) {
-          // Parse session start time with AM/PM handling
-          const parseTime = (date, timeStr) => {
-            return moment(date).hour(0).minute(0).second(0).millisecond(0)
-              .add(moment.duration(timeStr.toUpperCase()));
-          };
-
-          // Improved parsing using moment, considering AM/PM
-          function parseSessionTime(date, timeStr) {
-            const timeMoment = moment(timeStr, ['h:mm A']);
-            return moment(date).set({
-              hour: timeMoment.get('hour'),
-              minute: timeMoment.get('minute'),
-              second: 0,
-              millisecond: 0
-            });
-          }
-
-          const startTime = parseSessionTime(session.date, session.start);
-          const endTime = parseSessionTime(session.date, session.end);
+          // Combine to Date object (if you want for indexing/sorting)
+          const startTime = moment(`${moment(session.date).format('YYYY-MM-DD')} ${session.start}`, 'YYYY-MM-DD hh:mm A').toDate();
+          const endTime = moment(`${moment(session.date).format('YYYY-MM-DD')} ${session.end}`, 'YYYY-MM-DD hh:mm A').toDate();
 
           try {
             const zoomMeeting = await createZoomMeeting(
@@ -535,14 +519,18 @@ exports.paymentWebhook = async (req, res) => {
               startTime.toISOString()
             );
 
-            // Save Meeting document with scheduled start and end
+            // Save Meeting document, include raw session values
             await Meeting.create({
               user: user._id,
               therapySchedule: schedule._id,
               payment: paymentRecord._id,
               meetingLink: zoomMeeting.join_url,
-              scheduledAt: startTime.toDate(),
-              scheduledEnd: endTime.toDate(),
+              // Store both combined Date and original session fields:
+              scheduledAt: startTime,
+              scheduledEnd: endTime,
+              scheduledDate: session.date,       // exact original session.date
+              scheduledStart: session.start,     // e.g. "09:00 AM"
+              scheduledEndTime: session.end,     // e.g. "10:00 AM"
               status: 'scheduled',
               startedAt: null,
               endedAt: null,
