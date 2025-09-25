@@ -13,5 +13,5 @@ router.put('/:id', meetingController.updateMeetingById);
 
 // Delete meeting by ID
 router.delete('/:id', meetingController.deleteMeetingById);
-
+router.post('/send-email/:id', meetingController.sendSingleMeetingEmail);
 module.exports = router;
