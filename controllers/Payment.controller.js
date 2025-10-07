@@ -502,7 +502,7 @@ exports.paymentWebhook = async (req, res) => {
         expiresAt: null, // stop auto-deletion
         isApproved: "approved",
         status: "approved"
-      });
+      });   
 
       // Fetch related user & schedule
       const user = await User.findById(paymentRecord.userId);

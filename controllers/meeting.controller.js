@@ -104,7 +104,7 @@ exports.sendSingleMeetingEmail = async (req, res) => {
     const scheduledEndFormatted = meeting.scheduledEnd
       ? moment(meeting.scheduledEnd).format('M/D/YYYY, h:mm:ss A')
       : 'Not specified';
-
+   
     // Compose email HTML content
     const htmlContent = `
       <h2>Your Upcoming Therapy Session</h2>
@@ -118,7 +118,7 @@ exports.sendSingleMeetingEmail = async (req, res) => {
       <p>Please join your session promptly via the above Zoom link.</p>
       <hr/>
       <small>This is an automated message from TherapySync. Please do not reply.</small>
-    `;
+    `;   
 
     const mailOptions = {
       from: process.env.EMAIL_USER,
