@@ -36,6 +36,7 @@ const pricing = require("./routes/pricing.routes");
 const ApptDetails = require("./routes/AppointmentDetails.routes");
 const dashboardRoutes = require('./routes/dashboard.routes');
 const meetingRoutes = require('./routes/meeting.routes');
+const deviceToken = require('./routes/deviceToken.routes');
 
 app.use(express.json());
 app.use("/api/admin", adminRoutes);
@@ -57,7 +58,7 @@ app.use("/api/pricing", pricing);
 app.use("/api/ApptDetails", ApptDetails);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/meetings', meetingRoutes);
-
+app.use('/api/device-tokens', deviceToken);
 
 
 

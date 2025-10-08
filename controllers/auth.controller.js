@@ -7,6 +7,7 @@ const {
   verifyRefreshToken,
 } = require("../utils/jwt.util");
 const uploadSingleImage = require('../utils/aws/uploadSingleImage');
+const DeviceToken = require('../models/DeviceToken.model');
 
 // const generateOTP = () =>
 //   Math.floor(100000 + Math.random() * 900000).toString();
@@ -372,6 +373,9 @@ exports.logout = async (req, res) => {
 
     user.refreshToken = "";
     await user.save();
+    
+    // Remove all device tokens for this user
+    await DeviceToken.deleteMany({ userId: user._id });
 
     return res.status(200).json({
       status: 200,
