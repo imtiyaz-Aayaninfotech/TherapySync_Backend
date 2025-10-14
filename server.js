@@ -16,7 +16,7 @@ app.use(
 );
 
 connectDB();
-
+const backupRoutes = require('./routes/backup.routes');
 const adminRoutes = require("./routes/admin.routes");
 const authRoutes = require('./routes/auth.routes');
 const userRoutes = require('./routes/user.routes');
@@ -39,6 +39,7 @@ const meetingRoutes = require('./routes/meeting.routes');
 const deviceToken = require('./routes/deviceToken.routes');
 
 app.use(express.json());
+app.use('/api', backupRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/auth", authRoutes);
 app.use('/api/users', userRoutes);
