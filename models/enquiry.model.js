@@ -20,7 +20,7 @@ const websiteEnquirySchema = new mongoose.Schema(
     program: {
       type: String,
       required: true,
-     enum: ['family therapy', 'executive coaching', 'individual therapy'],
+     enum: ['couples therapy', 'executive coaching', 'individual therapy'],
     },
     ipAddress: {
       type: String,
