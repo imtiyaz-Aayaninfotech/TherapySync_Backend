@@ -24,6 +24,7 @@ router.patch("/:id/status", controller.updateApprovalStatus);
 router.delete("/:id", controller.deleteSchedule);
 router.patch("/:id/reschedule", controller.rescheduleSession);
 router.put("/:id", controller.updateTherapySchedule); //general-purpose update API
+router.get("/payment-status/:therapyScheduleId",controller.getPaymentStatusByScheduleId);
 
 
 module.exports = router;

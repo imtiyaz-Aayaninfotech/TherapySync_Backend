@@ -1221,3 +1221,92 @@ exports.setWorkingHours = async (req, res) => {
     res.status(500).json({ success: false, message: err.message });
   }
 };
+
+exports.getPaymentStatusByScheduleId = async (req, res) => {
+  try {
+    const { therapyScheduleId } = req.params;
+
+    // 1️⃣ Get therapy schedule
+    const schedule = await TherapySchedule.findById(therapyScheduleId);
+    if (!schedule) {
+      return res.status(404).json({
+        success: false,
+        message: "Therapy schedule not found",
+      });
+    }
+
+    // 2️⃣ sessionCount from therapy DB
+    const sessionCount = schedule.sessions.length;
+
+    // 3️⃣ durationMinutes from first session
+    const firstSession = schedule.sessions[0];
+    const start = moment(firstSession.start, "hh:mm A");
+    const end = moment(firstSession.end, "hh:mm A");
+    const durationMinutes = end.diff(start, "minutes");
+
+    // 4️⃣ Find pricing (SOURCE OF TRUTH)
+    const pricing = await Pricing.findOne({
+      categoryId: schedule.category_id,
+      sessionCount,
+      durationMinutes,
+      status: "active",
+    });
+
+    if (!pricing) {
+      return res.status(400).json({
+        success: false,
+        message: "Pricing not found for this therapy schedule",
+      });
+    }
+
+    // 5️⃣ Payment calculation
+    let paidAmount = 0;
+    let dueAmount = 0;
+    let dueType = null;
+
+    if (
+      schedule.paymentType === "full" ||
+      schedule.paymentType === "finalPayment"
+    ) {
+      // FULLY PAID → NO DATA
+      return res.status(200).json({
+        success: true,
+        message: "Payment completed",
+        data: null,
+      });
+    }
+
+    if (schedule.paymentType === "bookingFee") {
+      paidAmount = pricing.bookingFeeAmount;
+      dueAmount = pricing.finalPaymentAmount;
+      dueType = "final";
+    } else {
+      // nothing paid
+      paidAmount = 0;
+      dueAmount = pricing.totalPrice;
+      dueType = "full";
+    }
+
+    // 6️⃣ Send due info
+    return res.status(200).json({
+      success: true,
+      message: "Payment pending",
+      data: {
+        therapyScheduleId: schedule._id,
+        sessionCount,
+        durationMinutes,
+        totalPrice: pricing.totalPrice,
+        paidAmount,
+        dueAmount,
+        dueType,
+        currency: pricing.currency,
+      },
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({
+      success: false,
+      message: "Server error",
+    });
+  }
+};
