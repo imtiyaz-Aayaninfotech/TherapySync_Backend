@@ -302,6 +302,7 @@ exports.login = async (req, res) => {
             email: user.email,
             mobileNumber: user.mobileNumber,
             isVerified:user.isVerified,
+            region:user.region
           },
         },
       ],

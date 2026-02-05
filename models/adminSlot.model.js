@@ -2,36 +2,18 @@ const mongoose = require("mongoose");
 
 const SlotGroupSchema = new mongoose.Schema(
   {
-    startTime: {
-      type: String,
-      required: true,
-    },
-    endTime: {
-      type: String,
-      required: true,
-    },
-    slotDuration: {
-      type: Number,
-      default: 60,
-    },
+    startTime: String,
+    endTime: String,
+    slotDuration: { type: Number, default: 60 },
     slots: [
       {
-        start: {
-          type: String,
-          required: true,
-        },
-        end: {
-          type: String,
-          required: true,
-        },
-        isAvailable: {
-          type: Boolean,
-          default: true,
-        },
+        start: String,
+        end: String,
+        isAvailable: { type: Boolean, default: true },
       },
     ],
   },
-  { _id: false }
+  { _id: false },
 );
 
 const AdminSlotSchema = new mongoose.Schema(
@@ -40,9 +22,14 @@ const AdminSlotSchema = new mongoose.Schema(
       type: Date,
       required: true,
     },
+    region: {
+      type: String,
+      enum: ["Berlin", "Thessaloniki"],
+      required: true,
+    },
     slotGroups: [SlotGroupSchema],
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 module.exports = mongoose.model("AdminSlot", AdminSlotSchema);
