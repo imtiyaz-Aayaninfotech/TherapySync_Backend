@@ -1,6 +1,7 @@
 const Category = require('../models/category.model');
 const { categoryValidation } = require('../validations/category.validation');
 const deleteFromS3 = require('../utils/aws/deleteFromS3');
+const { t, getGermanAboutTherapy  } = require("../utils/i18n");
 
 // Add Category
 exports.addCategory = async (req, res) => {
@@ -45,64 +46,49 @@ exports.addCategory = async (req, res) => {
   }
 };
 
-// Get All Categories by region Only
-// exports.getAllCategories = async (req, res) => {
-//   try {
-//     const { region } = req.query;
 
-//     if (!region) {
-//       return res.status(400).json({
-//         status: 400,
-//         success: false,
-//         message: "region is required"
-//       });
-//     }
-
-//     const categories = await Category.find({ region });
-
-//     res.status(200).json({
-//       status: 200,
-//       success: true,
-//       message: "Categories fetched successfully",
-//       data: categories
-//     });
-//   } catch (err) {
-//     res.status(500).json({
-//       status: 500,
-//       success: false,
-//       message: "Fetch error",
-//       error: err.message
-//     });
-//   }
-// };
 exports.getAllCategories = async (req, res) => {
   try {
-    const { region } = req.query;
+    const { region, lang = "en" } = req.query;
+
     if (!region) {
       return res.status(400).json({
-        status: 400,
         success: false,
-        message: "region is required"
+        message: "region is required",
       });
     }
-    // Unify Berlin and Thessaloniki response
+
     let searchRegions = [region];
-    if (region === 'Berlin' || region === 'Thessaloniki') {
-      searchRegions = ['Berlin', 'Thessaloniki'];
+    if (region === "Berlin" || region === "Thessaloniki") {
+      searchRegions = ["Berlin", "Thessaloniki"];
     }
-    const categories = await Category.find({ region: { $in: searchRegions } });
-    res.status(200).json({
-      status: 200,
+
+    const categories = await Category.find({
+      region: { $in: searchRegions },
+      status: "active",
+    });
+
+    const data = categories.map((cat) => {
+      const germanAbout = getGermanAboutTherapy(cat.category, lang);
+
+      return {
+        ...cat.toObject(),
+        category: t(cat.category, lang),
+        type: t(cat.type, lang),
+        aboutTherapy: germanAbout || cat.aboutTherapy,
+      };
+    });
+
+    return res.status(200).json({
       success: true,
-      message: "Categories fetched successfully",
-      data: categories
+      message: t("Categories fetched successfully", lang),
+      data,
     });
   } catch (err) {
-    res.status(500).json({
-      status: 500,
+    return res.status(500).json({
       success: false,
       message: "Fetch error",
-      error: err.message
+      error: err.message,
     });
   }
 };
