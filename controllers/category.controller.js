@@ -49,22 +49,9 @@ exports.addCategory = async (req, res) => {
 
 exports.getAllCategories = async (req, res) => {
   try {
-    const { region, lang = "en" } = req.query;
-
-    if (!region) {
-      return res.status(400).json({
-        success: false,
-        message: "region is required",
-      });
-    }
-
-    let searchRegions = [region];
-    if (region === "Berlin" || region === "Thessaloniki") {
-      searchRegions = ["Berlin", "Thessaloniki"];
-    }
+    const { lang = "en" } = req.query;
 
     const categories = await Category.find({
-      region: { $in: searchRegions },
       status: "active",
     });
 
