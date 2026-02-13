@@ -14,7 +14,7 @@ const userSchema = new mongoose.Schema(
       required: true,
     },
     image: {
-      type: String, // image URL or path
+      type: String,
       default: "",
     },
     name: {
@@ -29,7 +29,7 @@ const userSchema = new mongoose.Schema(
     },
     gender: {
       type: String,
-      enum: ["Male", "Female", "Other",""],
+      enum: ["Male", "Female", "Other", ""],
       default: undefined,
     },
     dateOfBirth: {
@@ -48,12 +48,32 @@ const userSchema = new mongoose.Schema(
       type: String,
       default: "",
     },
-    region: {
+
+    // ✅ NEW COUNTRY FIELD
+    country: {
       type: String,
-      enum: ["Berlin", "Thessaloniki", "Athens", "Hamburg", "Other"],
+      enum: [
+        "UK",
+        "Ireland",
+        "Luxembourg",
+        "Latvia",
+        "Hungary",
+        "Bulgaria",
+        "Cyprus",
+        "Romania",
+        "Poland",
+        "Czech Republic",
+        "Berlin",
+        "Thessaloniki",
+      ],
       required: true,
-      trim: true,
     },
+
+    timeZone: {
+      type: String,
+      required: true,
+    },
+
     language: {
       type: String,
       enum: ["English", "German"],

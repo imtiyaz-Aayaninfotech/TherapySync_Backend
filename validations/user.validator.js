@@ -32,25 +32,47 @@
 const Joi = require('joi');
 const mongoose = require('mongoose');
 
-// Register Validation Schema
+// ✅ Country List (Single Source of Truth)
+const allowedCountries = [
+  'UK',
+  'Ireland',
+  'Luxembourg',
+  'Latvia',
+  'Hungary',
+  'Bulgaria',
+  'Cyprus',
+  'Romania',
+  'Poland',
+  'Czech Republic',
+  'Berlin',
+  'Thessaloniki'
+];
+
+
+// ================= REGISTER VALIDATION =================
 exports.validateRegisterUser = (req, res, next) => {
   const schema = Joi.object({
     email: Joi.string()
       .email({ tlds: { allow: false } })
-      .max(50) // Increased max length for more real-world emails
+      .max(50)
       .required()
       .messages({
         'string.email': 'Please enter a valid email address.',
         'string.max': 'Email must be at most 50 characters.',
         'any.required': 'Email is required.',
       }),
-    password: Joi.string().min(6).required().messages({
-      'string.min': 'Password must be at least 6 characters.',
-      'any.required': 'Password is required.',
-    }),
+
+    password: Joi.string()
+      .min(6)
+      .required()
+      .messages({
+        'string.min': 'Password must be at least 6 characters.',
+        'any.required': 'Password is required.',
+      }),
+
     name: Joi.string()
       .trim()
-      .max(50)  // Increased max length for names with multiple parts
+      .max(50)
       .pattern(/^[a-zA-Z\s]+$/)
       .required()
       .messages({
@@ -58,41 +80,49 @@ exports.validateRegisterUser = (req, res, next) => {
         'string.pattern.base': 'Name must only contain letters and spaces.',
         'any.required': 'Name is required.',
       }),
+
     phoneNumber: Joi.string()
       .pattern(/^[0-9]{7,15}$/)
-      .allow('', null) // Allow empty string or null to make optional
+      .allow('', null)
       .messages({
         'string.pattern.base': 'Phone number must be 7 to 15 digits.',
       }),
+
     gender: Joi.string()
       .valid('Male', 'Female', 'Other')
-      .allow('', null) // Optional field, allow empty
+      .allow('', null)
       .messages({
         'any.only': 'Gender must be one of Male, Female, or Other.',
       }),
+
     dateOfBirth: Joi.date()
-      .allow(null) // Optional
-      .max('now')  // Disallow future dates
+      .allow(null)
+      .max('now')
       .messages({
         'date.max': 'Date of birth cannot be in the future.',
       }),
-    region: Joi.string()
-      .valid('Berlin', 'Thessaloniki', 'Athens', 'Hamburg', 'Other')
+
+    // ✅ COUNTRY VALIDATION
+    country: Joi.string()
+      .valid(...allowedCountries)
       .required()
       .messages({
-        'any.only': 'Invalid region.',
-        'any.required': 'Region is required.',
+        'any.only': 'Invalid country selected.',
+        'any.required': 'Country is required.',
       }),
   });
 
   const { error } = schema.validate(req.body, { allowUnknown: true, convert: true });
+
   if (error) {
     return res.status(400).json({ message: error.details[0].message });
   }
+
   next();
 };
 
-// Update User Validation Schema
+
+// ================= UPDATE USER VALIDATION =================
 exports.validateUpdateUser = (req, res, next) => {
   const schema = Joi.object({
     name: Joi.string()
@@ -105,49 +135,60 @@ exports.validateUpdateUser = (req, res, next) => {
         'string.max': 'Name must be at most 50 characters.',
         'string.pattern.base': 'Name must only contain letters and spaces.',
       }),
+
     email: Joi.string()
       .email()
       .lowercase()
       .messages({
         'string.email': 'Please enter a valid email address.',
       }),
+
     phoneNumber: Joi.string()
       .pattern(/^[0-9]{7,15}$/)
       .allow('', null)
       .messages({
         'string.pattern.base': 'Phone number must be 7 to 15 digits.',
       }),
+
     gender: Joi.string()
       .valid('Male', 'Female', 'Other')
       .allow('', null)
       .messages({
         'any.only': 'Gender must be one of Male, Female, or Other.',
       }),
+
     dateOfBirth: Joi.date()
       .allow(null)
       .max('now')
       .messages({
         'date.max': 'Date of birth cannot be in the future.',
       }),
-    region: Joi.string()
-      .valid('Berlin', 'Thessaloniki', 'Athens', 'Hamburg', 'Other')
+
+    // ✅ COUNTRY (optional in update)
+    country: Joi.string()
+      .valid(...allowedCountries)
       .messages({
-        'any.only': 'Invalid region.',
+        'any.only': 'Invalid country selected.',
       }),
   });
 
   const { error } = schema.validate(req.body, { allowUnknown: true, convert: true });
+
   if (error) {
     return res.status(400).json({ message: error.details[0].message });
   }
+
   next();
 };
 
-// Object ID Validator
+
+// ================= OBJECT ID VALIDATOR =================
 exports.validateObjectId = (req, res, next) => {
   const { id } = req.params;
+
   if (!mongoose.Types.ObjectId.isValid(id)) {
     return res.status(400).json({ message: 'Invalid user ID format' });
   }
+
   next();
 };
