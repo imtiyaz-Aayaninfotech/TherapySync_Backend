@@ -32,12 +32,6 @@ const ConsentSchema = new mongoose.Schema({
     type: Date,
     default: Date.now
   },
-  region: {
-    type: String,
-    enum: ['Berlin', 'Thessaloniki'],
-    required: true,
-    trim: true,
-  },
 });
 
 module.exports = mongoose.model('Consent', ConsentSchema);
