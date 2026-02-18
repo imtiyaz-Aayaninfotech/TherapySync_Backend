@@ -739,40 +739,75 @@ exports.getAvailableSlots = async (req, res) => {
   try {
     const { date, region } = req.query;
 
-    if (!REGION_TIMEZONE[region]) {
-      return res.status(400).json({ message: "Invalid region" });
+    if (!date || !region) {
+      return res.status(400).json({
+        success: false,
+        message: "date and region are required",
+      });
     }
 
-    const tz = REGION_TIMEZONE[region];
+    if (!moment(date, "YYYY-MM-DD", true).isValid()) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid date format (YYYY-MM-DD)",
+      });
+    }
+
+    // First get timezone from REGION_TIMEZONE for date conversion
+    const initialTz = REGION_TIMEZONE[region];
+
+    if (!initialTz) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid region",
+      });
+    }
+
     const simpleDate = moment
-      .tz(date, "YYYY-MM-DD", tz)
+      .tz(date, "YYYY-MM-DD", initialTz)
       .startOf("day")
       .toDate();
 
+    // Fetch admin slot
     const adminSlot = await AdminSlot.findOne({
       date: simpleDate,
       region,
     }).lean();
+
     if (!adminSlot) {
-      return res.status(404).json({ message: "No slots found" });
+      return res.status(404).json({
+        success: false,
+        message: "No slots found",
+      });
     }
 
+    // ✅ IMPORTANT: Use timezone saved in DB
+    const tz = adminSlot.timezone;
+
+    // Find booked sessions
     const schedules = await TherapySchedule.find({
-      "sessions.date": {
-        $gte: simpleDate,
-        $lt: moment(simpleDate).add(1, "day").toDate(),
+      sessions: {
+        $elemMatch: {
+          date: {
+            $gte: simpleDate,
+            $lt: moment(simpleDate).add(1, "day").toDate(),
+          },
+        },
       },
       isApproved: { $in: ["pending", "approved"] },
     });
 
     const bookedSlots = [];
-    schedules.forEach((s) =>
-      s.sessions.forEach((sess) => {
-        if (moment(sess.date).tz(tz).format("YYYY-MM-DD") === date) {
-          bookedSlots.push(sess.start);
+
+    schedules.forEach((schedule) => {
+      schedule.sessions.forEach((session) => {
+        const sessionDate = moment(session.date).tz(tz).format("YYYY-MM-DD");
+
+        if (sessionDate === date) {
+          bookedSlots.push(session.start);
         }
-      }),
-    );
+      });
+    });
 
     const slotGroups = adminSlot.slotGroups.map((group) => ({
       startTime: group.startTime,
@@ -785,12 +820,23 @@ exports.getAvailableSlots = async (req, res) => {
       })),
     }));
 
-    res.json({ success: true, data: { date, region, slotGroups } });
-  } catch (e) {
-    res.status(500).json({ message: e.message });
+    return res.status(200).json({
+      success: true,
+      data: {
+        date,
+        region,
+        timezone: tz, // ✅ returning timezone also
+        slotGroups,
+      },
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Server Error",
+    });
   }
 };
-
 
 exports.getSlotsByCategoryAndDate = async (req, res) => {
   try {
@@ -909,7 +955,7 @@ exports.getSlotsByCategoryAndDate = async (req, res) => {
         group.slots = group.slots.filter((slot) => {
           const slotStart = moment.tz(
             `${date} ${slot.start}`,
-            "YYYY-MM-DD hh:mm A",
+            "YYYY-MM-DD HH:mm",
             tz,
           );
           return slotStart.isAfter(now);
@@ -960,10 +1006,12 @@ exports.setWorkingHours = async (req, res) => {
   try {
     const { date, slotGroups, region } = req.body;
 
-    if (!REGION_TIMEZONE[region]) {
+    const tz = REGION_TIMEZONE[region];
+
+    if (!tz) {
       return res.status(400).json({
         success: false,
-        message: "Invalid region (Berlin / Thessaloniki only)",
+        message: "Invalid region",
       });
     }
 
@@ -971,7 +1019,6 @@ exports.setWorkingHours = async (req, res) => {
       return res.status(400).json({ message: "Invalid date format" });
     }
 
-    const tz = REGION_TIMEZONE[region];
     const simpleDate = moment
       .tz(date, "YYYY-MM-DD", tz)
       .startOf("day")
@@ -990,7 +1037,12 @@ exports.setWorkingHours = async (req, res) => {
 
     const updated = await AdminSlot.findOneAndUpdate(
       { date: simpleDate, region },
-      { date: simpleDate, region, slotGroups: processedSlotGroups },
+      {
+        date: simpleDate,
+        region,
+        timezone: tz, // ✅ SAVE TIMEZONE
+        slotGroups: processedSlotGroups,
+      },
       { new: true, upsert: true },
     );
 

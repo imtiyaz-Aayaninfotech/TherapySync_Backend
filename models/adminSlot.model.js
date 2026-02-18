@@ -24,7 +24,11 @@ const AdminSlotSchema = new mongoose.Schema(
     },
     region: {
       type: String,
-      enum: ["Berlin", "Thessaloniki"],
+      required: true,
+      trim: true,
+    },
+    timezone: {
+      type: String,
       required: true,
     },
     slotGroups: [SlotGroupSchema],
