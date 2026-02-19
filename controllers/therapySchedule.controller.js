@@ -14,155 +14,194 @@ const REGION_TIMEZONE = require("../utils/regionTimezone");
 
 exports.createSchedule = async (req, res) => {
   try {
-    const { sessions, category_id, sessionPlan } = req.body;
+    const { sessions, category_id, sessionPlan, user } = req.body;
 
-    // 1. Validate sessions array existence and non-empty
     if (!sessions || !sessions.length) {
       return res.status(400).json({
-        message: "Sessions array is required and cannot be empty",
+        message: "Sessions array is required",
       });
     }
 
+    // 🔹 Get User
+    const User = require("../models/user.model");
+    const userDoc = await User.findById(user);
+
+    if (!userDoc) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const userTz = userDoc.timeZone;
     const firstSession = sessions[0];
 
-    // 2. Validate required fields on first session
     if (!firstSession.date || !firstSession.start || !firstSession.end) {
       return res.status(400).json({
-        message: "Each session requires date, start, and end time",
+        message: "Each session requires date, start, and end",
       });
     }
-    // 2a. Check if first session date/time is not in the past
-    const firstSessionDateTimeStr = `${moment(firstSession.date).format("YYYY-MM-DD")} ${firstSession.start}`;
-    const firstSessionDateTime = moment(
-      firstSessionDateTimeStr,
-      "YYYY-MM-DD hh:mm A",
+
+    // 🔹 Validate sessionPlan
+    if (sessionPlan === "single" && sessions.length !== 1) {
+      return res.status(400).json({
+        message: "Single session must contain exactly 1 session",
+      });
+    }
+
+    // 🔹 Convert USER → moment safely
+    const userStart = moment.tz(
+      `${firstSession.date} ${firstSession.start}`,
+      "YYYY-MM-DD HH:mm",
+      userTz,
     );
-    if (firstSessionDateTime.isBefore(moment())) {
-      return res
-        .status(400)
-        .json({ message: "Cannot create schedule for past date/time" });
-    }
 
-    // 3. Validate session count based on session plan
-    const sessionCount = sessions.length;
-    if (sessionPlan === "single" && sessionCount !== 1) {
+    const userEnd = moment.tz(
+      `${firstSession.date} ${firstSession.end}`,
+      "YYYY-MM-DD HH:mm",
+      userTz,
+    );
+
+    if (!userStart.isValid() || !userEnd.isValid()) {
       return res.status(400).json({
-        message: "Single session plan requires exactly 1 session",
-      });
-    }
-    if (sessionPlan === "package" && ![5, 10, 20].includes(sessionCount)) {
-      return res.status(400).json({
-        message: "Package session plan requires 5, 10, or 20 sessions",
+        message: "Invalid date or time format",
       });
     }
 
-    // 4. Calculate durationMinutes from first session start and end times using moment to parse 12-hour format with AM/PM
-    const startMoment = moment(firstSession.start, "hh:mm A");
-    const endMoment = moment(firstSession.end, "hh:mm A");
-    const durationMinutes = endMoment.diff(startMoment, "minutes");
+    // 🔹 Find AdminSlot FIRST (without timezone shifting)
+    const possibleAdminSlots = await AdminSlot.find({
+      date: {
+        $gte: moment(firstSession.date).startOf("day").toDate(),
+        $lt: moment(firstSession.date).endOf("day").toDate(),
+      },
+    });
 
-    if (durationMinutes <= 0) {
-      return res
-        .status(400)
-        .json({ message: "Invalid session start and end times" });
+    if (!possibleAdminSlots.length) {
+      return res.status(400).json({
+        message: "Admin has not set working hours for this date",
+      });
     }
 
-    // 5. Find corresponding Pricing document for the therapy category, duration, session count, active status
+    let adminSlot = null;
+    let adminStart = null;
+    let adminEnd = null;
+    let adminTz = null;
+
+    // 🔥 Find correct adminSlot by matching converted time
+    for (const slotDoc of possibleAdminSlots) {
+      adminTz = slotDoc.timezone;
+
+      const convertedStart = userStart.clone().tz(adminTz);
+      const convertedEnd = userEnd.clone().tz(adminTz);
+
+      const slotExists = slotDoc.slotGroups.some((group) =>
+        group.slots.some((s) => s.start === convertedStart.format("HH:mm")),
+      );
+
+      if (slotExists) {
+        adminSlot = slotDoc;
+        adminStart = convertedStart;
+        adminEnd = convertedEnd;
+        break;
+      }
+    }
+
+    if (!adminSlot) {
+      return res.status(400).json({
+        message: "Selected slot not found",
+      });
+    }
+
+    const durationMinutes = adminEnd.diff(adminStart, "minutes");
+
+    if (isNaN(durationMinutes) || durationMinutes <= 0) {
+      return res.status(400).json({
+        message: "Invalid session duration",
+      });
+    }
+
+    // 🔹 Pricing validation
     const pricing = await Pricing.findOne({
       categoryId: category_id,
-      durationMinutes: durationMinutes,
-      sessionCount: sessionCount,
+      durationMinutes,
+      sessionCount: sessions.length,
       status: "active",
     });
 
     if (!pricing) {
       return res.status(400).json({
-        message:
-          "Pricing not found for selected category, duration, and session count",
+        message: "Pricing not found",
       });
     }
 
-    // 6. Normalize date for slot and booking validation
-    const bookingDateStr = moment(firstSession.date).format("YYYY-MM-DD");
-    const normalizedDate = new Date(bookingDateStr + "T00:00:00.000Z");
-    const nextDay = new Date(normalizedDate.getTime() + 24 * 60 * 60 * 1000);
-    const startSlot = firstSession.start;
+    const adminDateStr = adminStart.format("YYYY-MM-DD");
 
-    // 7. Find AdminSlot for the normalized date or date range to verify working hours
-    let adminSlot = await AdminSlot.findOne({ date: normalizedDate });
-    if (!adminSlot) {
-      adminSlot = await AdminSlot.findOne({
-        date: { $gte: normalizedDate, $lt: nextDay },
-      });
-    }
-    if (!adminSlot) {
-      return res.status(400).json({
-        message: `Admin has not set working hours for ${bookingDateStr}`,
-      });
-    }
+    const normalizedDate = moment
+      .tz(adminDateStr, "YYYY-MM-DD", adminTz)
+      .startOf("day")
+      .toDate();
 
-    // 8. Find the correct slot inside the slotGroups of adminSlot
+    // 🔹 Find exact slot
     let foundSlot = null;
-    let foundGroup = null;
+
     for (const group of adminSlot.slotGroups) {
-      const slot = group.slots.find((s) => s.start === startSlot);
+      const slot = group.slots.find(
+        (s) => s.start === adminStart.format("HH:mm"),
+      );
       if (slot) {
         foundSlot = slot;
-        foundGroup = group;
         break;
       }
     }
+
     if (!foundSlot) {
-      return res
-        .status(400)
-        .json({ message: `Slot starting at ${startSlot} does not exist` });
-    }
-
-    // 9. Check if the slot is available or already booked in approved/pending TherapySchedules
-    if (!foundSlot.isAvailable) {
-      const existingBooking = await TherapySchedule.findOne({
-        "sessions.date": { $gte: normalizedDate, $lt: nextDay },
-        "sessions.start": startSlot,
-        isApproved: { $in: ["pending", "approved"] },
+      return res.status(400).json({
+        message: "Selected slot not found",
       });
-      if (existingBooking) {
-        return res
-          .status(400)
-          .json({ message: `Slot starting at ${startSlot} is already booked` });
-      }
     }
 
-    // 10. Mark the slot as unavailable and save adminSlot
+    // 🔹 Double check booking (real safety)
+    const existingBooking = await TherapySchedule.findOne({
+      "sessions.date": normalizedDate,
+      "sessions.start": adminStart.format("HH:mm"),
+      isApproved: { $in: ["pending", "approved"] },
+    });
+
+    if (existingBooking) {
+      return res.status(400).json({
+        message: "Slot already booked",
+      });
+    }
+
     foundSlot.isAvailable = false;
     await adminSlot.save();
 
-    // 11. Create new TherapySchedule using request data,
-    // including price from Pricing (totalPrice),
-    // initial payment state and status set to pending
-    const expiryDate = Date.now() + 15 * 60 * 1000; // 15 minutes in ms
+    // 🔹 Save schedule (ADMIN timezone)
     const newSchedule = new TherapySchedule({
-      ...req.body,
+      category_id,
+      user,
+      sessionPlan,
+      sessions: [
+        {
+          date: normalizedDate,
+          start: adminStart.format("HH:mm"),
+          end: adminEnd.format("HH:mm"),
+        },
+      ],
       price: pricing.totalPrice,
       isPaid: false,
       status: "pending",
-      expiresAt: expiryDate,
+      expiresAt: Date.now() + 15 * 60 * 1000,
     });
 
-    // 12. Save the schedule to DB
-    const savedSchedule = await newSchedule.save();
+    const saved = await newSchedule.save();
 
-    // 13. Respond with success and saved schedule data
     return res.status(200).json({
-      status: 200,
       success: true,
-      message: "Slot tentatively booked - please complete payment",
-      data: savedSchedule,
+      message: "Slot booked successfully",
+      data: saved,
     });
   } catch (err) {
-    console.error("Error in createSchedule:", err);
+    console.error("createSchedule error:", err);
     return res.status(500).json({
-      status: 500,
-      message: err.message || "An error occurred while creating the schedule",
+      message: err.message,
     });
   }
 };
@@ -170,45 +209,81 @@ exports.createSchedule = async (req, res) => {
 // Admin Booking API
 exports.adminCreateBooking = async (req, res) => {
   try {
-    const { sessions, category_id, sessionPlan, user, region } = req.body;
+    const { sessions, category_id, sessionPlan, user } = req.body;
 
     if (!sessions || !sessions.length) {
-      return res
-        .status(400)
-        .json({ message: "Sessions array is required and cannot be empty" });
+      return res.status(400).json({
+        message: "Sessions array is required",
+      });
     }
+
     const firstSession = sessions[0];
+
     if (!firstSession.date || !firstSession.start || !firstSession.end) {
-      return res
-        .status(400)
-        .json({ message: "Each session requires date, start, and end time" });
+      return res.status(400).json({
+        message: "Each session requires date, start, and end time",
+      });
     }
 
     const sessionCount = sessions.length;
+
     if (sessionPlan === "single" && sessionCount !== 1) {
-      return res
-        .status(400)
-        .json({ message: "Single session plan requires exactly 1 session" });
+      return res.status(400).json({
+        message: "Single session plan requires exactly 1 session",
+      });
     }
+
     if (sessionPlan === "package" && ![5, 10, 20].includes(sessionCount)) {
       return res.status(400).json({
         message: "Package session plan requires 5, 10, or 20 sessions",
       });
     }
 
-    const startMoment = moment(firstSession.start, "hh:mm A");
-    const endMoment = moment(firstSession.end, "hh:mm A");
-    const durationMinutes = endMoment.diff(startMoment, "minutes");
-    if (durationMinutes <= 0) {
-      return res
-        .status(400)
-        .json({ message: "Invalid session start and end times" });
+    // ✅ Validate time format strictly (24-hour)
+    const startMoment = moment(firstSession.start, "HH:mm", true);
+    const endMoment = moment(firstSession.end, "HH:mm", true);
+
+    if (!startMoment.isValid() || !endMoment.isValid()) {
+      return res.status(400).json({
+        message: "Invalid time format. Use HH:mm (24-hour)",
+      });
     }
 
+    const durationMinutes = endMoment.diff(startMoment, "minutes");
+
+    if (durationMinutes <= 0) {
+      return res.status(400).json({
+        message: "Invalid session duration",
+      });
+    }
+
+    // ✅ Find AdminSlot for that date
+    const adminSlot = await AdminSlot.findOne({
+      date: {
+        $gte: moment(firstSession.date).startOf("day").toDate(),
+        $lt: moment(firstSession.date).endOf("day").toDate(),
+      },
+    });
+
+    if (!adminSlot) {
+      return res.status(400).json({
+        message: `Admin has not set working hours for ${firstSession.date}`,
+      });
+    }
+
+    const adminTz = adminSlot.timezone;
+
+    // ✅ Normalize date in ADMIN timezone
+    const normalizedDate = moment
+      .tz(firstSession.date, "YYYY-MM-DD", adminTz)
+      .startOf("day")
+      .toDate();
+
+    // ✅ Pricing validation
     const pricing = await Pricing.findOne({
       categoryId: category_id,
-      durationMinutes: durationMinutes,
-      sessionCount: sessionCount,
+      durationMinutes,
+      sessionCount,
       status: "active",
     });
 
@@ -219,95 +294,90 @@ exports.adminCreateBooking = async (req, res) => {
       });
     }
 
-    // Normalize date at UTC midnight (same as createSchedule)
-    const bookingDateStr = moment(firstSession.date).format("YYYY-MM-DD");
-    const normalizedDate = new Date(bookingDateStr + "T00:00:00.000Z");
-    const nextDay = new Date(normalizedDate.getTime() + 24 * 60 * 60 * 1000);
+    // ✅ Check if slot exists in AdminSlot
+    let slotExists = false;
 
-    // Update sessions array's first session date to UTC normalized ISO string
-    const updatedSessions = sessions.map((session, index) => {
-      if (index === 0) {
-        return {
-          ...session,
-          date: normalizedDate.toISOString(),
-        };
-      }
-      // For package sessions, you can similarly normalize other sessions if needed
-      return session;
-    });
-
-    const startSlot = firstSession.start;
-
-    let adminSlot = await AdminSlot.findOne({ date: normalizedDate });
-    if (!adminSlot) {
-      adminSlot = await AdminSlot.findOne({
-        date: { $gte: normalizedDate, $lt: nextDay },
-      });
-    }
-
-    if (!adminSlot) {
-      return res.status(400).json({
-        message: `Admin has not set working hours for ${bookingDateStr}`,
-      });
-    }
-
-    let foundSlot = null;
-    let foundGroup = null;
     for (const group of adminSlot.slotGroups) {
-      const slot = group.slots.find((s) => s.start === startSlot);
+      const slot = group.slots.find((s) => s.start === firstSession.start);
       if (slot) {
-        foundSlot = slot;
-        foundGroup = group;
+        slotExists = true;
         break;
       }
     }
 
-    if (!foundSlot) {
-      return res
-        .status(400)
-        .json({ message: `Slot starting at ${startSlot} does not exist` });
+    if (!slotExists) {
+      return res.status(400).json({
+        message: `Slot starting at ${firstSession.start} does not exist`,
+      });
     }
 
-    if (!foundSlot.isAvailable) {
-      const existingBooking = await TherapySchedule.findOne({
-        "sessions.date": { $gte: normalizedDate, $lt: nextDay },
-        "sessions.start": startSlot,
-        isApproved: { $in: ["pending", "approved"] },
+    // ✅ REAL booking check using DATE RANGE (timezone safe)
+    const startOfDay = moment(normalizedDate).startOf("day").toDate();
+    const endOfDay = moment(normalizedDate).endOf("day").toDate();
+
+    const existingBooking = await TherapySchedule.findOne({
+      sessions: {
+        $elemMatch: {
+          date: { $gte: startOfDay, $lte: endOfDay },
+          start: firstSession.start,
+        },
+      },
+      $or: [
+        { status: "scheduled" },
+        {
+          status: "pending",
+          expiresAt: { $gt: new Date() },
+        },
+      ],
+    });
+
+    if (existingBooking) {
+      return res.status(400).json({
+        message: `Slot starting at ${firstSession.start} is already booked`,
       });
-      if (existingBooking) {
-        return res
-          .status(400)
-          .json({ message: `Slot starting at ${startSlot} is already booked` });
+    }
+
+    // ✅ Mark slot unavailable (optional visual sync)
+    for (const group of adminSlot.slotGroups) {
+      const slot = group.slots.find((s) => s.start === firstSession.start);
+      if (slot) {
+        slot.isAvailable = false;
+        break;
       }
     }
 
-    foundSlot.isAvailable = false;
     await adminSlot.save();
 
+    // ✅ Create schedule
     const newSchedule = new TherapySchedule({
-      ...req.body,
-      sessions: updatedSessions, // use updated sessions with normalized dates
+      category_id,
+      user,
+      sessionPlan,
+      sessions: [
+        {
+          date: normalizedDate,
+          start: firstSession.start,
+          end: firstSession.end,
+        },
+      ],
       price: pricing.totalPrice,
       isPaid: true,
       isApproved: "approved",
-      status: "scheduled",
+      status: "approved",
       paymentType: "full",
     });
 
     const savedSchedule = await newSchedule.save();
 
     return res.status(200).json({
-      status: 200,
       success: true,
-      message:
-        "Admin booking created successfully with confirmed payment status",
+      message: "Admin booking created successfully",
       data: savedSchedule,
     });
   } catch (err) {
     console.error("Error in adminCreateBooking:", err);
     return res.status(500).json({
-      status: 500,
-      message: err.message || "An error occurred while creating admin booking",
+      message: err.message || "Server error",
     });
   }
 };
@@ -503,149 +573,74 @@ exports.deleteSchedule = async (req, res) => {
   }
 };
 
-/*
-exports.rescheduleSession = async (req, res) => {
-  try {
-    const { newDate, start, end, reason, message } = req.body;
-
-    if (!newDate || !start || !end || !reason) {
-      return res.status(400).json({ message: "newDate, start, end, and reason are required" });
-    }
-
-    const schedule = await TherapySchedule.findById(req.params.id);
-    if (!schedule) {
-      return res.status(404).json({ message: "Schedule not found" });
-    }
-
-    // Get last session from the schedule
-    const lastSessionIndex = schedule.sessions.length - 1;
-    const lastSession = schedule.sessions[lastSessionIndex];
-
-    const oldDateStr = moment(lastSession.date).format("YYYY-MM-DD");
-    const newDateStr = moment(newDate).format("YYYY-MM-DD");
-
-    const oldNormalizedDate = new Date(oldDateStr + "T00:00:00.000Z");
-    const newNormalizedDate = new Date(newDateStr + "T00:00:00.000Z");
-    const nextDayNew = new Date(newNormalizedDate.getTime() + 24 * 60 * 60 * 1000);
-
-    // 1️⃣ Free up the old slot in AdminSlot
-    let oldSlotDoc = await AdminSlot.findOne({ date: oldNormalizedDate });
-    if (oldSlotDoc) {
-      const oldSlot = oldSlotDoc.slots.find(s => s.start === lastSession.start);
-      if (oldSlot) oldSlot.isAvailable = true;
-      await oldSlotDoc.save();
-    }
-
-    // 2️⃣ Check for new slot availability
-    let newSlotDoc = await AdminSlot.findOne({ date: newNormalizedDate });
-    if (!newSlotDoc) {
-      // Try fallback by date range
-      newSlotDoc = await AdminSlot.findOne({
-        date: { $gte: newNormalizedDate, $lt: nextDayNew }
-      });
-    }
-    if (!newSlotDoc) {
-      return res.status(400).json({ message: `Admin has not set working hours for ${newDateStr}` });
-    }
-
-    const targetSlot = newSlotDoc.slots.find(s => s.start === start);
-    if (!targetSlot) {
-      return res.status(400).json({ message: `Slot starting at ${start} not found for ${newDateStr}` });
-    }
-    if (!targetSlot.isAvailable) {
-      return res.status(400).json({ message: `Slot starting at ${start} is already booked` });
-    }
-
-    // 3️⃣ Mark the new slot as booked
-    targetSlot.isAvailable = false;
-    await newSlotDoc.save();
-
-    // 4️⃣ Add reschedule history
-    schedule.rescheduleHistory.push({
-      previousDate: lastSession.date,
-      newDate,
-      reason,
-      message: message || "",
-    });
-
-    // 5️⃣ Update session details
-    schedule.sessions[lastSessionIndex].date = newDate;
-    schedule.sessions[lastSessionIndex].start = start;
-    schedule.sessions[lastSessionIndex].end = end;
-
-    // 6️⃣ Update status
-    schedule.status = "rescheduled";
-
-    const updated = await schedule.save();
-
-    return res.status(200).json({
-      status: 200,
-      success: true,
-      message: "Session rescheduled successfully",
-      data: updated,
-    });
-
-  } catch (err) {
-    console.error("Reschedule error:", err);
-    return res.status(400).json({
-      status: 400,
-      success: false,
-      message: err.message || "Error rescheduling session",
-    });
-  }
-};  */
-
 exports.rescheduleSession = async (req, res) => {
   try {
     const { newDate, start, end, reason, message, sessionIndex } = req.body;
 
-    // 1. Validate input
     if (!newDate || !start || !end || !reason) {
-      return res
-        .status(400)
-        .json({ message: "newDate, start, end, and reason are required" });
+      return res.status(400).json({
+        message: "newDate, start, end, and reason are required",
+      });
     }
 
-    // Prevent rescheduling to a past date/time
-    const newDateTimeStr = `${newDate} ${start}`;
-    const newDateTime = moment(newDateTimeStr, "YYYY-MM-DD hh:mm A");
-    if (newDateTime.isBefore(moment())) {
-      return res
-        .status(400)
-        .json({ message: "Cannot reschedule to a past date/time" });
-    }
-
-    // 2. Find schedule
+    // 1️⃣ Find schedule
     const schedule = await TherapySchedule.findById(req.params.id);
     if (!schedule) {
       return res.status(404).json({ message: "Schedule not found" });
     }
 
-    // 3. Only allow if fully paid
-    // if (!["full", "finalPayment"].includes(schedule.paymentType)) {
-    //   return res.status(403).json({
-    //     message: "Rescheduling allowed only after full or final payment is completed",
-    //   });
-    // }
+    // 2️⃣ Determine which session
+    let idx =
+      sessionIndex !== undefined && sessionIndex !== null
+        ? sessionIndex
+        : schedule.sessions.length - 1;
 
-    // 4. Determine which session to reschedule
-    let idx = sessionIndex;
-    if (idx === undefined || idx === null) {
-      // if index not provided, fallback to last session like old code
-      idx = schedule.sessions.length - 1;
-    }
     if (idx < 0 || idx >= schedule.sessions.length) {
-      return res
-        .status(400)
-        .json({ message: "Invalid session index for reschedule" });
+      return res.status(400).json({
+        message: "Invalid session index for reschedule",
+      });
     }
 
     const sessionToReschedule = schedule.sessions[idx];
 
-    // 5. Free old slot
+    // 3️⃣ Find AdminSlot for NEW DATE (get timezone)
+    const newSlotDoc = await AdminSlot.findOne({
+      date: {
+        $gte: moment(newDate).startOf("day").toDate(),
+        $lt: moment(newDate).endOf("day").toDate(),
+      },
+    });
+
+    if (!newSlotDoc) {
+      return res.status(400).json({
+        message: `Admin has not set working hours for ${newDate}`,
+      });
+    }
+
+    const adminTz = newSlotDoc.timezone;
+
+    // 4️⃣ Validate not past (ADMIN TIMEZONE SAFE)
+    const newDateTime = moment.tz(
+      `${newDate} ${start}`,
+      "YYYY-MM-DD HH:mm",
+      adminTz,
+    );
+
+    if (newDateTime.isBefore(moment().tz(adminTz))) {
+      return res.status(400).json({
+        message: "Cannot reschedule to a past date/time",
+      });
+    }
+
+    // 5️⃣ Free OLD slot
     const oldDateStr = moment(sessionToReschedule.date).format("YYYY-MM-DD");
-    const oldNormalizedDate = new Date(oldDateStr + "T00:00:00.000Z");
-    let oldSlotDoc = await AdminSlot.findOne({ date: oldNormalizedDate });
+
+    const oldSlotDoc = await AdminSlot.findOne({
+      date: {
+        $gte: moment(oldDateStr).startOf("day").toDate(),
+        $lt: moment(oldDateStr).endOf("day").toDate(),
+      },
+    });
 
     if (oldSlotDoc) {
       for (const group of oldSlotDoc.slotGroups) {
@@ -660,26 +655,9 @@ exports.rescheduleSession = async (req, res) => {
       await oldSlotDoc.save();
     }
 
-    // 6. Check new slot availability
-    const newDateStr = moment(newDate).format("YYYY-MM-DD");
-    const newNormalizedDate = new Date(newDateStr + "T00:00:00.000Z");
-    const nextDayNew = new Date(
-      newNormalizedDate.getTime() + 24 * 60 * 60 * 1000,
-    );
-
-    let newSlotDoc = await AdminSlot.findOne({ date: newNormalizedDate });
-    if (!newSlotDoc) {
-      newSlotDoc = await AdminSlot.findOne({
-        date: { $gte: newNormalizedDate, $lt: nextDayNew },
-      });
-    }
-    if (!newSlotDoc) {
-      return res
-        .status(400)
-        .json({ message: `Admin has not set working hours for ${newDateStr}` });
-    }
-
+    // 6️⃣ Find target slot in new date
     let targetSlot = null;
+
     for (const group of newSlotDoc.slotGroups) {
       const slot = group.slots.find((s) => s.start === start);
       if (slot) {
@@ -687,31 +665,40 @@ exports.rescheduleSession = async (req, res) => {
         break;
       }
     }
+
     if (!targetSlot) {
       return res.status(400).json({
-        message: `Slot starting at ${start} not found for ${newDateStr}`,
+        message: `Slot starting at ${start} not found for ${newDate}`,
       });
     }
+
     if (!targetSlot.isAvailable) {
-      return res
-        .status(400)
-        .json({ message: `Slot starting at ${start} is already booked` });
+      return res.status(400).json({
+        message: `Slot starting at ${start} is already booked`,
+      });
     }
 
-    // 7. Mark new slot as used
+    // 7️⃣ Mark new slot as used
     targetSlot.isAvailable = false;
     await newSlotDoc.save();
 
-    // 8. Track history
+    // 8️⃣ Track history
     schedule.rescheduleHistory.push({
       previousDate: sessionToReschedule.date,
-      newDate,
+      newDate: moment
+        .tz(newDate, "YYYY-MM-DD", adminTz)
+        .startOf("day")
+        .toDate(),
       reason,
       message: message || "",
     });
 
-    // 9. Replace only that session
-    schedule.sessions[idx].date = newDate;
+    // 9️⃣ Update session (STORE IN ADMIN TZ)
+    schedule.sessions[idx].date = moment
+      .tz(newDate, "YYYY-MM-DD", adminTz)
+      .startOf("day")
+      .toDate();
+
     schedule.sessions[idx].start = start;
     schedule.sessions[idx].end = end;
 
@@ -720,15 +707,13 @@ exports.rescheduleSession = async (req, res) => {
     const updated = await schedule.save();
 
     return res.status(200).json({
-      status: 200,
       success: true,
       message: `Session ${idx + 1} rescheduled successfully`,
       data: updated,
     });
   } catch (err) {
     console.error("Reschedule error:", err);
-    return res.status(400).json({
-      status: 400,
+    return res.status(500).json({
       success: false,
       message: err.message || "Error rescheduling session",
     });
@@ -840,164 +825,132 @@ exports.getAvailableSlots = async (req, res) => {
 
 exports.getSlotsByCategoryAndDate = async (req, res) => {
   try {
-    const { date, categoryId, region } = req.query;
-
-    // 🔹 NEW: region validation
-    if (!REGION_TIMEZONE[region]) {
-      return res.status(400).json({
-        status: 400,
-        success: false,
-        message: "Invalid region (Berlin / Thessaloniki)",
-        data: {},
-      });
-    }
+    const { date, categoryId, userId } = req.query;
 
     if (!date || !moment(date, "YYYY-MM-DD", true).isValid()) {
       return res.status(400).json({
-        status: 400,
         success: false,
         message: "Invalid date format (YYYY-MM-DD)",
-        data: {},
       });
     }
 
-    if (!categoryId) {
+    if (!categoryId || !userId) {
       return res.status(400).json({
-        status: 400,
         success: false,
-        message: "categoryId is required",
-        data: {},
+        message: "date, categoryId and userId are required",
       });
     }
+
+    const User = require("../models/user.model");
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    const userTz = user.timeZone;
 
     const category = await Category.findById(categoryId);
     if (!category) {
       return res.status(404).json({
-        status: 404,
         success: false,
         message: "Category not found",
-        data: {},
       });
     }
 
-    // 🔹 session durations
     let sessionDurations = [60];
     if (category.category === "Individual Therapy") sessionDurations = [50];
     else if (category.category === "Couples Therapy")
       sessionDurations = [60, 90];
 
-    // 🔹 IMPORTANT: region timezone date
-    const tz = REGION_TIMEZONE[region];
-    const simpleDate = moment
-      .tz(date, "YYYY-MM-DD", tz)
-      .startOf("day")
-      .toDate();
-
-    const adminSlot = await AdminSlot.findOne({
-      date: simpleDate,
-      region,
+    // 🔹 Get admin slots
+    const adminSlots = await AdminSlot.find({
+      date: {
+        $gte: moment(date).startOf("day").toDate(),
+        $lt: moment(date).endOf("day").toDate(),
+      },
     }).lean();
-    if (!adminSlot) {
+
+    if (!adminSlots.length) {
       return res.status(200).json({
-        status: 200,
         success: true,
-        message: "No working hours set for this date",
+        message: "No working hours set",
         data: {},
       });
     }
 
-    const slotGroups = adminSlot.slotGroups
-      .filter((group) => sessionDurations.includes(group.slotDuration))
-      .map((group) => ({
-        startTime: group.startTime,
-        endTime: group.endTime,
-        slotDuration: group.slotDuration,
-        slots: group.slots,
-      }));
-
-    const schedules = await TherapySchedule.find({
-      sessions: {
-        $elemMatch: {
-          date: {
-            $gte: simpleDate,
-            $lt: moment(simpleDate).add(1, "day").toDate(),
-          },
-        },
+    // 🔥 NEW: Get booked schedules (SOURCE OF TRUTH)
+    const bookedSchedules = await TherapySchedule.find({
+      "sessions.date": {
+        $gte: moment(date).startOf("day").toDate(),
+        $lt: moment(date).endOf("day").toDate(),
       },
       isApproved: { $in: ["pending", "approved"] },
-    });
+    }).lean();
 
-    const bookedSlots = [];
-    schedules.forEach((schedule) => {
-      schedule.sessions.forEach((session) => {
-        if (moment(session.date).tz(tz).format("YYYY-MM-DD") === date) {
-          bookedSlots.push(session.start);
-        }
-      });
-    });
+    let finalSlotGroups = [];
 
-    slotGroups.forEach((group) => {
-      group.slots = group.slots.map((slot) => ({
-        start: slot.start,
-        end: slot.end,
-        isAvailable: !bookedSlots.includes(slot.start),
-      }));
-    });
+    for (const adminSlot of adminSlots) {
+      const adminTz = adminSlot.timezone;
 
-    // =====================================================
-    // 🔴 POINT-6 FIX (REPLACED CODE – TIMEZONE SAFE)
-    // =====================================================
-    const now = moment.tz(tz);
-    const requestedDay = moment.tz(date, "YYYY-MM-DD", tz);
+      for (const group of adminSlot.slotGroups) {
+        if (!sessionDurations.includes(group.slotDuration)) continue;
 
-    if (requestedDay.isSame(now, "day")) {
-      slotGroups.forEach((group) => {
-        group.slots = group.slots.filter((slot) => {
-          const slotStart = moment.tz(
+        const convertedSlots = group.slots.map((slot) => {
+          const adminStart = moment.tz(
             `${date} ${slot.start}`,
             "YYYY-MM-DD HH:mm",
-            tz,
+            adminTz,
           );
-          return slotStart.isAfter(now);
+
+          const adminEnd = moment.tz(
+            `${date} ${slot.end}`,
+            "YYYY-MM-DD HH:mm",
+            adminTz,
+          );
+
+          const userStart = adminStart.clone().tz(userTz);
+          const userEnd = adminEnd.clone().tz(userTz);
+
+          // 🔥 CHECK REAL BOOKINGS
+          const isBooked = bookedSchedules.some((sch) =>
+            sch.sessions.some(
+              (s) =>
+                s.start === slot.start &&
+                moment(s.date).format("YYYY-MM-DD") === date,
+            ),
+          );
+
+          return {
+            start: userStart.format("HH:mm"),
+            end: userEnd.format("HH:mm"),
+            isAvailable: !isBooked,
+          };
         });
-      });
+
+        finalSlotGroups.push({
+          slotDuration: group.slotDuration,
+          slots: convertedSlots,
+        });
+      }
     }
-    // =====================================================
-
-    const pricingList = await Pricing.find({
-      categoryId,
-      durationMinutes: { $in: sessionDurations },
-      status: "active",
-    }).sort({ sessionCount: 1 });
-
-    const pricing = pricingList.map((p) => ({
-      durationMinutes: p.durationMinutes,
-      sessionCount: p.sessionCount,
-      totalPrice: p.totalPrice,
-      bookingFeeAmount: p.bookingFeeAmount,
-      finalPaymentAmount: p.finalPaymentAmount,
-      currency: p.currency,
-      notes: p.notes,
-    }));
 
     return res.status(200).json({
-      status: 200,
       success: true,
-      message: "Slots and pricing fetched successfully",
+      message: "Slots converted to user timezone",
       data: {
+        userTimezone: userTz,
         date,
-        region,
-        slotGroups,
-        pricing,
+        slotGroups: finalSlotGroups,
       },
     });
   } catch (error) {
     console.error(error);
     return res.status(500).json({
-      status: 500,
       success: false,
       message: error.message || "Server Error",
-      data: {},
     });
   }
 };
@@ -1070,8 +1023,8 @@ exports.getPaymentStatusByScheduleId = async (req, res) => {
 
     // 3️⃣ durationMinutes from first session
     const firstSession = schedule.sessions[0];
-    const start = moment(firstSession.start, "hh:mm A");
-    const end = moment(firstSession.end, "hh:mm A");
+    const start = moment(firstSession.start, "HH:mm");
+    const end = moment(firstSession.end, "HH:mm");
     const durationMinutes = end.diff(start, "minutes");
 
     // 4️⃣ Find pricing (SOURCE OF TRUTH)
@@ -1140,3 +1093,17 @@ exports.getPaymentStatusByScheduleId = async (req, res) => {
     });
   }
 };
+
+/*
+
+For AdminSlot
+Field: date     → Ascending (1)
+Field: region   → Ascending (1)
+
+
+Click Create.
+
+🔹 For TherapySchedule
+Field: sessions.date → Ascending (1)
+
+*/

@@ -96,7 +96,7 @@ const TherapyScheduleSchema = new mongoose.Schema(
     region: {
       type: String,
       enum: ["Berlin", "Thessaloniki"],
-      required: true,
+      required: false,
       trim: true,
     },
     isPaid: {
