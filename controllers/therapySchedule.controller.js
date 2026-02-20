@@ -935,6 +935,12 @@ exports.getSlotsByCategoryAndDate = async (req, res) => {
       });
     }
 
+      // 🔹 Get active pricing for this category
+      const pricingData = await Pricing.find({
+        categoryId: categoryId,
+        status: "active",
+      }).lean();
+
     // 🔥 NEW: Get booked schedules (SOURCE OF TRUTH)
     const bookedSchedules = await TherapySchedule.find({
       "sessions.date": {
@@ -997,6 +1003,7 @@ exports.getSlotsByCategoryAndDate = async (req, res) => {
       data: {
         userTimezone: userTz,
         date,
+        pricing: pricingData,
         slotGroups: finalSlotGroups,
       },
     });
