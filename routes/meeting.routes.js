@@ -3,7 +3,7 @@ const router = express.Router();
 const meetingController = require('../controllers/meeting.controller');
 
 // Get meetings by user ID
-router.get('/user/:userId', meetingController.getMeetingsByUser);
+router.get('/user/:userId/schedule/:therapyScheduleId', meetingController.getMeetingsByUser);
 
 // Get meeting by ID
 router.get('/:id', meetingController.getMeetingById);

@@ -9,16 +9,41 @@ const sendError = (res, code, message) =>
   res.status(code).json({ success: false, message });
 
 // Get all meetings for a user by user ID param
+// exports.getMeetingsByUser = async (req, res) => {
+//   try {
+//     const userId = req.params.userId;
+//     if (!userId) return sendError(res, 400, 'User ID required');
+
+//     const meetings = await Meeting.find({ user: userId }).sort({ scheduledAt: 1 });
+//     return res.json({ success: true, data: meetings });
+//   } catch (error) {
+//     console.error('Get meetings by user error:', error);
+//     return sendError(res, 500, 'Server error fetching meetings');
+//   }
+// };
+
+
 exports.getMeetingsByUser = async (req, res) => {
   try {
-    const userId = req.params.userId;
-    if (!userId) return sendError(res, 400, 'User ID required');
+    const { userId, therapyScheduleId } = req.params;
 
-    const meetings = await Meeting.find({ user: userId }).sort({ scheduledAt: 1 });
-    return res.json({ success: true, data: meetings });
+    if (!userId || !therapyScheduleId) {
+      return sendError(res, 400, "User ID and TherapySchedule ID required");
+    }
+
+    const meetings = await Meeting.find({
+      user: userId,
+      therapySchedule: therapyScheduleId,
+    }).sort({ scheduledAt: 1 });
+
+    return res.json({
+      success: true,
+      count: meetings.length,
+      data: meetings,
+    });
   } catch (error) {
-    console.error('Get meetings by user error:', error);
-    return sendError(res, 500, 'Server error fetching meetings');
+    console.error("Get meetings by user & schedule error:", error);
+    return sendError(res, 500, "Server error fetching meetings");
   }
 };
 
