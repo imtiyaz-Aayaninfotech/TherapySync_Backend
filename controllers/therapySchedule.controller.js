@@ -1099,62 +1099,12 @@ exports.getSlotsByCategoryAndDate = async (req, res) => {
   }
 };
 
-// exports.setWorkingHours = async (req, res) => {
-//   try {
-//     const { date, slotGroups, region } = req.body;
-
-//     const tz = REGION_TIMEZONE[region];
-
-//     if (!tz) {
-//       return res.status(400).json({
-//         success: false,
-//         message: "Invalid region",
-//       });
-//     }
-
-//     if (!moment(date, "YYYY-MM-DD", true).isValid()) {
-//       return res.status(400).json({ message: "Invalid date format" });
-//     }
-
-//     const simpleDate = moment
-//       .tz(date, "YYYY-MM-DD", tz)
-//       .startOf("day")
-//       .toDate();
-
-//     const processedSlotGroups = slotGroups.map((group) => ({
-//       startTime: group.startTime,
-//       endTime: group.endTime,
-//       slotDuration: group.slotDuration || 60,
-//       slots: generateSlots(
-//         group.startTime,
-//         group.endTime,
-//         group.slotDuration || 60,
-//       ),
-//     }));
-
-//     const updated = await AdminSlot.findOneAndUpdate(
-//       { date: simpleDate, region },
-//       {
-//         date: simpleDate,
-//         region,
-//         timezone: tz, // ✅ SAVE TIMEZONE
-//         slotGroups: processedSlotGroups,
-//       },
-//       { new: true, upsert: true },
-//     );
-
-//     res.status(200).json({ success: true, data: updated });
-//   } catch (err) {
-//     res.status(500).json({ success: false, message: err.message });
-//   }
-// };
-
 exports.setWorkingHours = async (req, res) => {
   try {
     const { date, slotGroups, region } = req.body;
 
-    // ✅ 1. Validate region
     const tz = REGION_TIMEZONE[region];
+
     if (!tz) {
       return res.status(400).json({
         success: false,
@@ -1162,12 +1112,8 @@ exports.setWorkingHours = async (req, res) => {
       });
     }
 
-    // ✅ 2. Validate date format
     if (!moment(date, "YYYY-MM-DD", true).isValid()) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid date format (YYYY-MM-DD required)",
-      });
+      return res.status(400).json({ message: "Invalid date format" });
     }
 
     const simpleDate = moment
@@ -1175,72 +1121,6 @@ exports.setWorkingHours = async (req, res) => {
       .startOf("day")
       .toDate();
 
-    // ✅ 3. Prevent same date for different region
-    const startOfDayUTC = moment(simpleDate).startOf("day").toDate();
-    const endOfDayUTC = moment(simpleDate).endOf("day").toDate();
-
-    const existingOtherRegion = await AdminSlot.findOne({
-      date: { $gte: startOfDayUTC, $lte: endOfDayUTC },
-      region: { $ne: region },
-    });
-
-    if (existingOtherRegion) {
-      return res.status(400).json({
-        success: false,
-        message: "This date is already assigned to another region",
-      });
-    }
-
-    // ✅ 4. Validate slotGroups array
-    if (!Array.isArray(slotGroups) || slotGroups.length === 0) {
-      return res.status(400).json({
-        success: false,
-        message: "slotGroups must be a non-empty array",
-      });
-    }
-
-    // ✅ 5. Time Conflict Validation
-    for (let i = 0; i < slotGroups.length; i++) {
-      const { startTime, endTime } = slotGroups[i];
-
-      if (
-        !moment(startTime, "HH:mm", true).isValid() ||
-        !moment(endTime, "HH:mm", true).isValid()
-      ) {
-        return res.status(400).json({
-          success: false,
-          message: "Time must be in 24-hour HH:mm format",
-        });
-      }
-
-      const start = moment(startTime, "HH:mm");
-      const end = moment(endTime, "HH:mm");
-
-      // ❌ Start must be before end
-      if (start.isSameOrAfter(end)) {
-        return res.status(400).json({
-          success: false,
-          message: "Start time must be before end time",
-        });
-      }
-
-      // ❌ Check overlapping with previous groups
-      for (let j = 0; j < i; j++) {
-        const prevStart = moment(slotGroups[j].startTime, "HH:mm");
-        const prevEnd = moment(slotGroups[j].endTime, "HH:mm");
-
-        const isOverlap = start.isBefore(prevEnd) && end.isAfter(prevStart);
-
-        if (isOverlap) {
-          return res.status(400).json({
-            success: false,
-            message: "Time slot conflict detected between slot groups",
-          });
-        }
-      }
-    }
-
-    // ✅ 6. Generate Slots
     const processedSlotGroups = slotGroups.map((group) => ({
       startTime: group.startTime,
       endTime: group.endTime,
@@ -1252,30 +1132,150 @@ exports.setWorkingHours = async (req, res) => {
       ),
     }));
 
-    // ✅ 7. Create or Update (Same date + region only)
     const updated = await AdminSlot.findOneAndUpdate(
       { date: simpleDate, region },
       {
         date: simpleDate,
         region,
-        timezone: tz,
+        timezone: tz, // ✅ SAVE TIMEZONE
         slotGroups: processedSlotGroups,
       },
       { new: true, upsert: true },
     );
 
-    return res.status(200).json({
-      success: true,
-      message: "Working hours saved successfully",
-      data: updated,
-    });
+    res.status(200).json({ success: true, data: updated });
   } catch (err) {
-    return res.status(500).json({
-      success: false,
-      message: err.message,
-    });
+    res.status(500).json({ success: false, message: err.message });
   }
 };
+
+// exports.setWorkingHours = async (req, res) => {
+//   try {
+//     const { date, slotGroups, region } = req.body;
+
+//     // ✅ 1. Validate region
+//     const tz = REGION_TIMEZONE[region];
+//     if (!tz) {
+//       return res.status(400).json({
+//         success: false,
+//         message: "Invalid region",
+//       });
+//     }
+
+//     // ✅ 2. Validate date format
+//     if (!moment(date, "YYYY-MM-DD", true).isValid()) {
+//       return res.status(400).json({
+//         success: false,
+//         message: "Invalid date format (YYYY-MM-DD required)",
+//       });
+//     }
+
+//     const simpleDate = moment
+//       .tz(date, "YYYY-MM-DD", tz)
+//       .startOf("day")
+//       .toDate();
+
+//     // ✅ 3. Prevent same date for different region
+//     const startOfDayUTC = moment(simpleDate).startOf("day").toDate();
+//     const endOfDayUTC = moment(simpleDate).endOf("day").toDate();
+
+//     const existingOtherRegion = await AdminSlot.findOne({
+//       date: { $gte: startOfDayUTC, $lte: endOfDayUTC },
+//       region: { $ne: region },
+//     });
+
+//     if (existingOtherRegion) {
+//       return res.status(400).json({
+//         success: false,
+//         message: "This date is already assigned to another region",
+//       });
+//     }
+
+//     // ✅ 4. Validate slotGroups array
+//     if (!Array.isArray(slotGroups) || slotGroups.length === 0) {
+//       return res.status(400).json({
+//         success: false,
+//         message: "slotGroups must be a non-empty array",
+//       });
+//     }
+
+//     // ✅ 5. Time Conflict Validation
+//     for (let i = 0; i < slotGroups.length; i++) {
+//       const { startTime, endTime } = slotGroups[i];
+
+//       if (
+//         !moment(startTime, "HH:mm", true).isValid() ||
+//         !moment(endTime, "HH:mm", true).isValid()
+//       ) {
+//         return res.status(400).json({
+//           success: false,
+//           message: "Time must be in 24-hour HH:mm format",
+//         });
+//       }
+
+//       const start = moment(startTime, "HH:mm");
+//       const end = moment(endTime, "HH:mm");
+
+//       // ❌ Start must be before end
+//       if (start.isSameOrAfter(end)) {
+//         return res.status(400).json({
+//           success: false,
+//           message: "Start time must be before end time",
+//         });
+//       }
+
+//       // ❌ Check overlapping with previous groups
+//       for (let j = 0; j < i; j++) {
+//         const prevStart = moment(slotGroups[j].startTime, "HH:mm");
+//         const prevEnd = moment(slotGroups[j].endTime, "HH:mm");
+
+//         const isOverlap = start.isBefore(prevEnd) && end.isAfter(prevStart);
+
+//         if (isOverlap) {
+//           return res.status(400).json({
+//             success: false,
+//             message: "Time slot conflict detected between slot groups",
+//           });
+//         }
+//       }
+//     }
+
+//     // ✅ 6. Generate Slots
+//     const processedSlotGroups = slotGroups.map((group) => ({
+//       startTime: group.startTime,
+//       endTime: group.endTime,
+//       slotDuration: group.slotDuration || 60,
+//       slots: generateSlots(
+//         group.startTime,
+//         group.endTime,
+//         group.slotDuration || 60,
+//       ),
+//     }));
+
+//     // ✅ 7. Create or Update (Same date + region only)
+//     const updated = await AdminSlot.findOneAndUpdate(
+//       { date: simpleDate, region },
+//       {
+//         date: simpleDate,
+//         region,
+//         timezone: tz,
+//         slotGroups: processedSlotGroups,
+//       },
+//       { new: true, upsert: true },
+//     );
+
+//     return res.status(200).json({
+//       success: true,
+//       message: "Working hours saved successfully",
+//       data: updated,
+//     });
+//   } catch (err) {
+//     return res.status(500).json({
+//       success: false,
+//       message: err.message,
+//     });
+//   }
+// };
 
 exports.getPaymentStatusByScheduleId = async (req, res) => {
   try {
