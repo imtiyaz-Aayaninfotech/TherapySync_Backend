@@ -6,7 +6,7 @@ const Pricing = require("../models/Pricing.model");
 const Category = require("../models/category.model");
 const moment = require("moment-timezone");
 const REGION_TIMEZONE = require("../utils/regionTimezone");
-const User = require("../models/user.model");
+
 /*
  Mongo shell RUN one time 
  db.therapyschedules.createIndex({ "expiresAt": 1 }, { expireAfterSeconds: 0 })
