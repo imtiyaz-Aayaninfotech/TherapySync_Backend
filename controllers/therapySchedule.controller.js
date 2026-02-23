@@ -1018,11 +1018,11 @@ exports.getSlotsByCategoryAndDate = async (req, res) => {
       });
     }
 
-    // 🔹 Get active pricing for this category
-    const pricingData = await Pricing.find({
-      categoryId: categoryId,
-      status: "active",
-    }).lean();
+      // 🔹 Get active pricing for this category
+      const pricingData = await Pricing.find({
+        categoryId: categoryId,
+        status: "active",
+      }).lean();
 
     // 🔥 NEW: Get booked schedules (SOURCE OF TRUTH)
     const bookedSchedules = await TherapySchedule.find({
