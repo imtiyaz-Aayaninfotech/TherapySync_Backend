@@ -1093,8 +1093,11 @@ exports.setWorkingHours = async (req, res) => {
       .toDate();
 
     // ✅ 3. Prevent same date for different region
+    const startOfDayUTC = moment(simpleDate).startOf("day").toDate();
+    const endOfDayUTC = moment(simpleDate).endOf("day").toDate();
+
     const existingOtherRegion = await AdminSlot.findOne({
-      date: simpleDate,
+      date: { $gte: startOfDayUTC, $lte: endOfDayUTC },
       region: { $ne: region },
     });
 
