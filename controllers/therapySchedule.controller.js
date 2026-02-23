@@ -6,7 +6,7 @@ const Pricing = require("../models/Pricing.model");
 const Category = require("../models/category.model");
 const moment = require("moment-timezone");
 const REGION_TIMEZONE = require("../utils/regionTimezone");
-
+const User = require("../models/user.model");
 /*
  Mongo shell RUN one time 
  db.therapyschedules.createIndex({ "expiresAt": 1 }, { expireAfterSeconds: 0 })
@@ -456,36 +456,119 @@ exports.getScheduleById = async (req, res) => {
   }
 };
 
+// exports.getUserById = async (req, res) => {
+//   try {
+//     const userId = req.params.id; // id from URL path
+
+//     // Find all schedules belonging to this user
+//     const schedules = await TherapySchedule.find({ user: userId })
+//       .populate("user", "name email")
+//       .populate("category_id", "name");
+
+//     if (!schedules || schedules.length === 0) {
+//       return res.status(404).json({
+//         status: 404,
+//         success: false,
+//         message: "No schedules found for this user",
+//         data: [], // always empty array when not found
+//       });
+//     }
+
+//     return res.status(200).json({
+//       status: 200,
+//       success: true,
+//       message: "User schedules fetched successfully",
+//       data: schedules,
+//     });
+//   } catch (err) {
+//     console.error("Error fetching user schedules:", err);
+//     return res.status(400).json({
+//       status: 400,
+//       success: false,
+//       message: err.message || "An error occurred while fetching user schedules",
+//       data: [],
+//     });
+//   }
+// };
+
 exports.getUserById = async (req, res) => {
   try {
-    const userId = req.params.id; // id from URL path
+    const userId = req.params.id;
 
-    // Find all schedules belonging to this user
+    // ✅ Get user first (for timezone)
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({
+        status: 404,
+        success: false,
+        message: "User not found",
+        data: [],
+      });
+    }
+
+    const userTz = user.timeZone;
+
+    // ✅ Get schedules
     const schedules = await TherapySchedule.find({ user: userId })
       .populate("user", "name email")
-      .populate("category_id", "name");
+      .populate("category_id", "name")
+      .lean();
 
     if (!schedules || schedules.length === 0) {
       return res.status(404).json({
         status: 404,
         success: false,
         message: "No schedules found for this user",
-        data: [], // always empty array when not found
+        data: [],
       });
     }
+
+    // ✅ Convert session times to user timezone
+    const convertedSchedules = schedules.map((schedule) => {
+      const convertedSessions = schedule.sessions.map((session) => {
+        const adminDate = moment(session.date);
+
+        const adminStart = moment.tz(
+          `${moment(adminDate).format("YYYY-MM-DD")} ${session.start}`,
+          "YYYY-MM-DD HH:mm",
+          schedule.region === "Berlin" ? "Europe/Berlin" : "Europe/Athens",
+        );
+
+        const adminEnd = moment.tz(
+          `${moment(adminDate).format("YYYY-MM-DD")} ${session.end}`,
+          "YYYY-MM-DD HH:mm",
+          schedule.region === "Berlin" ? "Europe/Berlin" : "Europe/Athens",
+        );
+
+        const userStart = adminStart.clone().tz(userTz);
+        const userEnd = adminEnd.clone().tz(userTz);
+
+        return {
+          ...session,
+          date: userStart.format("YYYY-MM-DD"),
+          start: userStart.format("HH:mm"),
+          end: userEnd.format("HH:mm"),
+        };
+      });
+
+      return {
+        ...schedule,
+        sessions: convertedSessions,
+      };
+    });
 
     return res.status(200).json({
       status: 200,
       success: true,
       message: "User schedules fetched successfully",
-      data: schedules,
+      data: convertedSchedules,
     });
   } catch (err) {
     console.error("Error fetching user schedules:", err);
     return res.status(400).json({
       status: 400,
       success: false,
-      message: err.message || "An error occurred while fetching user schedules",
+      message: err.message,
       data: [],
     });
   }
