@@ -730,14 +730,21 @@ exports.getUserById = async (req, res) => {
         const adminTz = adminSlot;
 
         // 🔥 Step 2: Build admin datetime correctly
+
+        const adminDateStr = moment
+          .utc(session.date)
+          .tz(adminTz)
+          .format("YYYY-MM-DD");
+
+        // Step 2: Build full admin datetime
         const adminDateTime = moment.tz(
-          moment(session.date).format("YYYY-MM-DD") + " " + session.start,
+          `${adminDateStr} ${session.start}`,
           "YYYY-MM-DD HH:mm",
           adminTz,
         );
 
         const adminEndDateTime = moment.tz(
-          moment(session.date).format("YYYY-MM-DD") + " " + session.end,
+          `${adminDateStr} ${session.end}`,
           "YYYY-MM-DD HH:mm",
           adminTz,
         );
