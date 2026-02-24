@@ -515,17 +515,35 @@ exports.paymentWebhook = async (req, res) => {
           const sessionDateStr = moment(session.date).format('YYYY-MM-DD');
           // const startTime = moment(`${sessionDateStr} ${session.start}`, 'YYYY-MM-DD hh:mm A').toDate();
           // const endTime = moment(`${sessionDateStr} ${session.end}`, 'YYYY-MM-DD hh:mm A').toDate();
-            const startTime = moment(
+            // const startTime = moment(
+            //   `${sessionDateStr} ${session.start}`,
+            //   'YYYY-MM-DD HH:mm',
+            //   true
+            // ).toDate();
+
+            // const endTime = moment(
+            //   `${sessionDateStr} ${session.end}`,
+            //   'YYYY-MM-DD HH:mm',
+            //   true
+            // ).toDate();
+            // 🔥 detect admin timezone from schedule.region
+            const adminTz =
+              schedule.region === "Thessaloniki"
+                ? "Europe/Athens"
+                : "Europe/Berlin"; // default Berlin
+
+            const startTime = moment.tz(
               `${sessionDateStr} ${session.start}`,
               'YYYY-MM-DD HH:mm',
-              true
-            ).toDate();
+              adminTz
+            ).utc().toDate();
 
-            const endTime = moment(
+            const endTime = moment.tz(
               `${sessionDateStr} ${session.end}`,
               'YYYY-MM-DD HH:mm',
-              true
-            ).toDate();
+              adminTz
+            ).utc().toDate();
+
           try {
             const zoomMeeting = await createZoomMeeting(
               `Therapy Session for ${user.name}`,

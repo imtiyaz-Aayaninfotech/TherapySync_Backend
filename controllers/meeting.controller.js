@@ -10,6 +10,30 @@ const sendError = (res, code, message) =>
   res.status(code).json({ success: false, message });
 
 // Get all meetings for a user by user ID param
+// exports.getMeetingsByUserOnly = async (req, res) => {
+//   try {
+//     let userId = req.params.userId?.trim();
+
+//     if (!userId) {
+//       return sendError(res, 400, "User ID required");
+//     }
+
+//     // Validate ObjectId
+//     if (!mongoose.Types.ObjectId.isValid(userId)) {
+//       return sendError(res, 400, "Invalid User ID");
+//     }
+
+//     const meetings = await Meeting.find({ user: userId }).sort({
+//       scheduledAt: 1,
+//     });
+
+//     return res.json({ success: true, data: meetings });
+//   } catch (error) {
+//     console.error("Get meetings by user error:", error);
+//     return sendError(res, 500, "Server error fetching meetings");
+//   }
+// };
+
 exports.getMeetingsByUserOnly = async (req, res) => {
   try {
     let userId = req.params.userId?.trim();
@@ -18,21 +42,48 @@ exports.getMeetingsByUserOnly = async (req, res) => {
       return sendError(res, 400, "User ID required");
     }
 
-    // Validate ObjectId
     if (!mongoose.Types.ObjectId.isValid(userId)) {
       return sendError(res, 400, "Invalid User ID");
     }
+
+    // 🔥 Get user timezone
+    const User = require("../models/user.model");
+    const userDoc = await User.findById(userId);
+
+    if (!userDoc) {
+      return sendError(res, 404, "User not found");
+    }
+
+    const userTz = userDoc.timeZone;
 
     const meetings = await Meeting.find({ user: userId }).sort({
       scheduledAt: 1,
     });
 
-    return res.json({ success: true, data: meetings });
+    // ✅ Convert UTC → USER TIMEZONE
+    const convertedMeetings = meetings.map((meeting) => {
+      const startUserTime = moment
+        .utc(meeting.scheduledAt)
+        .tz(userTz);
+
+      const endUserTime = moment
+        .utc(meeting.scheduledEnd)
+        .tz(userTz);
+
+      return {
+        ...meeting.toObject(),
+        scheduledAt: startUserTime.format("YYYY-MM-DD HH:mm"),
+        scheduledEnd: endUserTime.format("YYYY-MM-DD HH:mm"),
+      };
+    });
+
+    return res.json({ success: true, data: convertedMeetings });
   } catch (error) {
     console.error("Get meetings by user error:", error);
     return sendError(res, 500, "Server error fetching meetings");
   }
 };
+
 
 exports.getMeetingsByUser = async (req, res) => {
   try {
