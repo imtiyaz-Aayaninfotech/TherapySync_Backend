@@ -228,6 +228,7 @@ const REGION_TIMEZONE = require("../utils/regionTimezone");
 // };
 
 exports.createSchedule = async (req, res) => {
+  const lockedSlots = [];
   try {
     const { sessions, category_id, sessionPlan, user } = req.body;
 
@@ -271,13 +272,13 @@ exports.createSchedule = async (req, res) => {
       const userStart = moment.tz(
         `${session.date} ${session.start}`,
         "YYYY-MM-DD HH:mm",
-        userTz
+        userTz,
       );
 
       const userEnd = moment.tz(
         `${session.date} ${session.end}`,
         "YYYY-MM-DD HH:mm",
-        userTz
+        userTz,
       );
 
       if (!userStart.isValid() || !userEnd.isValid()) {
@@ -306,7 +307,7 @@ exports.createSchedule = async (req, res) => {
           startOfDayUTC,
           endOfDayUTC,
           null,
-          "[)"
+          "[)",
         );
       });
 
@@ -328,9 +329,7 @@ exports.createSchedule = async (req, res) => {
         const convertedEnd = userEnd.clone().tz(adminTz);
 
         const slotExists = slotDoc.slotGroups.some((group) =>
-          group.slots.some(
-            (s) => s.start === convertedStart.format("HH:mm")
-          )
+          group.slots.some((s) => s.start === convertedStart.format("HH:mm")),
         );
 
         if (slotExists) {
@@ -374,7 +373,7 @@ exports.createSchedule = async (req, res) => {
 
       for (const group of adminSlot.slotGroups) {
         const slot = group.slots.find(
-          (s) => s.start === adminStart.format("HH:mm")
+          (s) => s.start === adminStart.format("HH:mm"),
         );
         if (slot) {
           foundSlot = slot;
@@ -400,8 +399,15 @@ exports.createSchedule = async (req, res) => {
         });
       }
 
+      // foundSlot.isAvailable = false;
+      // await adminSlot.save();
+
+      // 🔒 LOCK SLOT
       foundSlot.isAvailable = false;
       await adminSlot.save();
+
+      // track locked slot for rollback safety
+      lockedSlots.push({ adminSlot, foundSlot });
 
       convertedSessions.push({
         date: normalizedDate,
@@ -711,48 +717,48 @@ exports.getUserById = async (req, res) => {
 
     // ✅ Convert sessions to USER timezone
     const convertedSchedules = schedules.map((schedule) => {
-  const convertedSessions = schedule.sessions.map((session) => {
+      const convertedSessions = schedule.sessions.map((session) => {
+        // 🔥 Step 1: Find which admin timezone this slot belongs to
+        // We detect using date matching from AdminSlot collection
+        // (Because admin may be Berlin or Athens)
 
-    // 🔥 Step 1: Find which admin timezone this slot belongs to
-    // We detect using date matching from AdminSlot collection
-    // (Because admin may be Berlin or Athens)
+        const adminSlot =
+          schedule._doc.region === "Thessaloniki"
+            ? "Europe/Athens"
+            : "Europe/Berlin"; // default Berlin
 
-    const adminSlot = schedule._doc.region === "Thessaloniki"
-      ? "Europe/Athens"
-      : "Europe/Berlin"; // default Berlin
+        const adminTz = adminSlot;
 
-    const adminTz = adminSlot;
+        // 🔥 Step 2: Build admin datetime correctly
+        const adminDateTime = moment.tz(
+          moment(session.date).format("YYYY-MM-DD") + " " + session.start,
+          "YYYY-MM-DD HH:mm",
+          adminTz,
+        );
 
-    // 🔥 Step 2: Build admin datetime correctly
-    const adminDateTime = moment.tz(
-      moment(session.date).format("YYYY-MM-DD") + " " + session.start,
-      "YYYY-MM-DD HH:mm",
-      adminTz
-    );
+        const adminEndDateTime = moment.tz(
+          moment(session.date).format("YYYY-MM-DD") + " " + session.end,
+          "YYYY-MM-DD HH:mm",
+          adminTz,
+        );
 
-    const adminEndDateTime = moment.tz(
-      moment(session.date).format("YYYY-MM-DD") + " " + session.end,
-      "YYYY-MM-DD HH:mm",
-      adminTz
-    );
+        // 🔥 Step 3: Convert to user timezone
+        const userDateTime = adminDateTime.clone().tz(userTz);
+        const userEndDateTime = adminEndDateTime.clone().tz(userTz);
 
-    // 🔥 Step 3: Convert to user timezone
-    const userDateTime = adminDateTime.clone().tz(userTz);
-    const userEndDateTime = adminEndDateTime.clone().tz(userTz);
+        return {
+          ...session.toObject(),
+          date: userDateTime.format("YYYY-MM-DD"),
+          start: userDateTime.format("HH:mm"),
+          end: userEndDateTime.format("HH:mm"),
+        };
+      });
 
-    return {
-      ...session.toObject(),
-      date: userDateTime.format("YYYY-MM-DD"),
-      start: userDateTime.format("HH:mm"),
-      end: userEndDateTime.format("HH:mm"),
-    };
-  });
-
-  return {
-    ...schedule.toObject(),
-    sessions: convertedSessions,
-  };
-});
+      return {
+        ...schedule.toObject(),
+        sessions: convertedSessions,
+      };
+    });
     return res.status(200).json({
       status: 200,
       success: true,
@@ -1366,7 +1372,7 @@ exports.getSlotsByCategoryAndDate = async (req, res) => {
         startOfDayUTC,
         endOfDayUTC,
         null,
-        "[)"
+        "[)",
       );
     });
 
@@ -1401,13 +1407,13 @@ exports.getSlotsByCategoryAndDate = async (req, res) => {
           const adminStart = moment.tz(
             `${date} ${slot.start}`,
             "YYYY-MM-DD HH:mm",
-            adminTz
+            adminTz,
           );
 
           const adminEnd = moment.tz(
             `${date} ${slot.end}`,
             "YYYY-MM-DD HH:mm",
-            adminTz
+            adminTz,
           );
 
           const userStart = adminStart.clone().tz(userTz);
@@ -1420,7 +1426,7 @@ exports.getSlotsByCategoryAndDate = async (req, res) => {
                 s.start === slot.start &&
                 sessionStartUTC.isSame(adminStart.clone().utc(), "minute")
               );
-            })
+            }),
           );
 
           return {
