@@ -960,6 +960,145 @@ exports.getAvailableSlots = async (req, res) => {
   }
 };
 
+// exports.getSlotsByCategoryAndDate = async (req, res) => {
+//   try {
+//     const { date, categoryId, userId } = req.query;
+
+//     if (!date || !moment(date, "YYYY-MM-DD", true).isValid()) {
+//       return res.status(400).json({
+//         success: false,
+//         message: "Invalid date format (YYYY-MM-DD)",
+//       });
+//     }
+
+//     if (!categoryId || !userId) {
+//       return res.status(400).json({
+//         success: false,
+//         message: "date, categoryId and userId are required",
+//       });
+//     }
+
+//     const User = require("../models/user.model");
+//     const user = await User.findById(userId);
+//     if (!user) {
+//       return res.status(404).json({
+//         success: false,
+//         message: "User not found",
+//       });
+//     }
+
+//     const userTz = user.timeZone;
+
+//     const category = await Category.findById(categoryId);
+//     if (!category) {
+//       return res.status(404).json({
+//         success: false,
+//         message: "Category not found",
+//       });
+//     }
+
+//     let sessionDurations = [60];
+//     if (category.category === "Individual Therapy") sessionDurations = [50];
+//     else if (category.category === "Couples Therapy")
+//       sessionDurations = [60, 90];
+
+//     // 🔹 Get admin slots
+//     const adminSlots = await AdminSlot.find({
+//       date: {
+//         $gte: moment(date).startOf("day").toDate(),
+//         $lt: moment(date).endOf("day").toDate(),
+//       },
+//     }).lean();
+
+//     if (!adminSlots.length) {
+//       return res.status(200).json({
+//         success: true,
+//         message: "No working hours set",
+//         data: {},
+//       });
+//     }
+
+//     // 🔹 Get active pricing for this category
+//     const pricingData = await Pricing.find({
+//       categoryId: categoryId,
+//       status: "active",
+//     }).lean();
+
+//     // 🔥 NEW: Get booked schedules (SOURCE OF TRUTH)
+//     const bookedSchedules = await TherapySchedule.find({
+//       "sessions.date": {
+//         $gte: moment(date).startOf("day").toDate(),
+//         $lt: moment(date).endOf("day").toDate(),
+//       },
+//       isApproved: { $in: ["pending", "approved"] },
+//     }).lean();
+
+//     let finalSlotGroups = [];
+
+//     for (const adminSlot of adminSlots) {
+//       const adminTz = adminSlot.timezone;
+
+//       for (const group of adminSlot.slotGroups) {
+//         if (!sessionDurations.includes(group.slotDuration)) continue;
+
+//         const convertedSlots = group.slots.map((slot) => {
+//           const adminStart = moment.tz(
+//             `${date} ${slot.start}`,
+//             "YYYY-MM-DD HH:mm",
+//             adminTz,
+//           );
+
+//           const adminEnd = moment.tz(
+//             `${date} ${slot.end}`,
+//             "YYYY-MM-DD HH:mm",
+//             adminTz,
+//           );
+
+//           const userStart = adminStart.clone().tz(userTz);
+//           const userEnd = adminEnd.clone().tz(userTz);
+
+//           // 🔥 CHECK REAL BOOKINGS
+//           const isBooked = bookedSchedules.some((sch) =>
+//             sch.sessions.some(
+//               (s) =>
+//                 s.start === slot.start &&
+//                 moment(s.date).format("YYYY-MM-DD") === date,
+//             ),
+//           );
+
+//           return {
+//             start: userStart.format("HH:mm"),
+//             end: userEnd.format("HH:mm"),
+//             isAvailable: !isBooked,
+//           };
+//         });
+
+//         finalSlotGroups.push({
+//           slotDuration: group.slotDuration,
+//           slots: convertedSlots,
+//         });
+//       }
+//     }
+
+//     return res.status(200).json({
+//       success: true,
+//       message: "Slots converted to user timezone",
+//       data: {
+//         userTimezone: userTz,
+//         date,
+//         pricing: pricingData,
+//         slotGroups: finalSlotGroups,
+//       },
+//     });
+//   } catch (error) {
+//     console.error(error);
+//     return res.status(500).json({
+//       success: false,
+//       message: error.message || "Server Error",
+//     });
+//   }
+// };
+
 exports.getSlotsByCategoryAndDate = async (req, res) => {
   try {
     const { date, categoryId, userId } = req.query;
@@ -1002,13 +1141,38 @@ exports.getSlotsByCategoryAndDate = async (req, res) => {
     else if (category.category === "Couples Therapy")
       sessionDurations = [60, 90];
 
-    // 🔹 Get admin slots
-    const adminSlots = await AdminSlot.find({
-      date: {
-        $gte: moment(date).startOf("day").toDate(),
-        $lt: moment(date).endOf("day").toDate(),
-      },
-    }).lean();
+    // ✅ STEP 1: Get ALL admin slots (Berlin + Thessaloniki)
+    const allAdminSlots = await AdminSlot.find().lean();
+
+    if (!allAdminSlots.length) {
+      return res.status(200).json({
+        success: true,
+        message: "No working hours set",
+        data: {},
+      });
+    }
+
+    // ✅ STEP 2: Filter slots by timezone-safe date matching
+    const adminSlots = allAdminSlots.filter((slot) => {
+      const adminTz = slot.timezone;
+
+      const startOfDayUTC = moment
+        .tz(date, "YYYY-MM-DD", adminTz)
+        .startOf("day")
+        .utc();
+
+      const endOfDayUTC = moment
+        .tz(date, "YYYY-MM-DD", adminTz)
+        .endOf("day")
+        .utc();
+
+      return moment(slot.date).isBetween(
+        startOfDayUTC,
+        endOfDayUTC,
+        null,
+        "[)"
+      );
+    });
 
     if (!adminSlots.length) {
       return res.status(200).json({
@@ -1018,18 +1182,14 @@ exports.getSlotsByCategoryAndDate = async (req, res) => {
       });
     }
 
-    // 🔹 Get active pricing for this category
+    // ✅ Pricing
     const pricingData = await Pricing.find({
-      categoryId: categoryId,
+      categoryId,
       status: "active",
     }).lean();
 
-    // 🔥 NEW: Get booked schedules (SOURCE OF TRUTH)
+    // ✅ Get booked schedules using same timezone-safe logic
     const bookedSchedules = await TherapySchedule.find({
-      "sessions.date": {
-        $gte: moment(date).startOf("day").toDate(),
-        $lt: moment(date).endOf("day").toDate(),
-      },
       isApproved: { $in: ["pending", "approved"] },
     }).lean();
 
@@ -1045,25 +1205,26 @@ exports.getSlotsByCategoryAndDate = async (req, res) => {
           const adminStart = moment.tz(
             `${date} ${slot.start}`,
             "YYYY-MM-DD HH:mm",
-            adminTz,
+            adminTz
           );
 
           const adminEnd = moment.tz(
             `${date} ${slot.end}`,
             "YYYY-MM-DD HH:mm",
-            adminTz,
+            adminTz
           );
 
           const userStart = adminStart.clone().tz(userTz);
           const userEnd = adminEnd.clone().tz(userTz);
 
-          // 🔥 CHECK REAL BOOKINGS
           const isBooked = bookedSchedules.some((sch) =>
-            sch.sessions.some(
-              (s) =>
+            sch.sessions.some((s) => {
+              const sessionStartUTC = moment(s.date).utc();
+              return (
                 s.start === slot.start &&
-                moment(s.date).format("YYYY-MM-DD") === date,
-            ),
+                sessionStartUTC.isSame(adminStart.clone().utc(), "minute")
+              );
+            })
           );
 
           return {
