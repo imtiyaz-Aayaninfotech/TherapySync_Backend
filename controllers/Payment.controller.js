@@ -512,7 +512,7 @@ exports.paymentWebhook = async (req, res) => {
         const sessionDetails = [];
 
         for (const session of schedule.sessions) {
-          const sessionDateStr = moment(session.date).format('YYYY-MM-DD');
+          // const sessionDateStr = moment(session.date).format('YYYY-MM-DD');
           // const startTime = moment(`${sessionDateStr} ${session.start}`, 'YYYY-MM-DD hh:mm A').toDate();
           // const endTime = moment(`${sessionDateStr} ${session.end}`, 'YYYY-MM-DD hh:mm A').toDate();
             // const startTime = moment(
@@ -526,23 +526,27 @@ exports.paymentWebhook = async (req, res) => {
             //   'YYYY-MM-DD HH:mm',
             //   true
             // ).toDate();
-            // 🔥 detect admin timezone from schedule.region
             const adminTz =
-              schedule.region === "Thessaloniki"
-                ? "Europe/Athens"
-                : "Europe/Berlin"; // default Berlin
+  schedule.region === "Thessaloniki"
+    ? "Europe/Athens"
+    : "Europe/Berlin";
 
-            const startTime = moment.tz(
-              `${sessionDateStr} ${session.start}`,
-              'YYYY-MM-DD HH:mm',
-              adminTz
-            ).utc().toDate();
+const sessionDateStr = moment
+  .utc(session.date)
+  .tz(adminTz)
+  .format('YYYY-MM-DD');
 
-            const endTime = moment.tz(
-              `${sessionDateStr} ${session.end}`,
-              'YYYY-MM-DD HH:mm',
-              adminTz
-            ).utc().toDate();
+const startTime = moment.tz(
+  `${sessionDateStr} ${session.start}`,
+  'YYYY-MM-DD HH:mm',
+  adminTz
+).utc().toDate();
+
+const endTime = moment.tz(
+  `${sessionDateStr} ${session.end}`,
+  'YYYY-MM-DD HH:mm',
+  adminTz
+).utc().toDate();
 
           try {
             const zoomMeeting = await createZoomMeeting(
