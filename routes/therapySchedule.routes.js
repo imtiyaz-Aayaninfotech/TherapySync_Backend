@@ -14,6 +14,7 @@ router.post("/admin/set-working-hours",controller.setWorkingHours);
 // router.post("/book-schedule", verifyAuth, createSchedule);
 
 router.get("/available-slots", controller.getAvailableSlots);
+router.delete("/admin-slot/:id", controller.deleteAdminSlotById);
 router.get("/getSlotsByCategoryAndDate", controller.getSlotsByCategoryAndDate);
 router.post("/", validator.body(scheduleValidator), controller.createSchedule);
 router.post("/adminCreateBooking", controller.adminCreateBooking);

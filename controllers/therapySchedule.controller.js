@@ -1,3 +1,4 @@
+const mongoose = require("mongoose");
 const TherapySchedule = require("../models/therapySchedule.model");
 // const moment = require("moment");
 const AdminSlot = require("../models/adminSlot.model");
@@ -1154,11 +1155,47 @@ exports.getAvailableSlots = async (req, res) => {
     return res.status(200).json({
       success: true,
       data: {
+        adminSlotId: adminSlot._id,
         date,
         region,
         timezone: tz, // ✅ returning timezone also
         slotGroups,
       },
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Server Error",
+    });
+  }
+};
+
+exports.deleteAdminSlotById = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // ✅ Validate ObjectId
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid AdminSlot ID",
+      });
+    }
+
+    const deletedSlot = await AdminSlot.findByIdAndDelete(id);
+
+    if (!deletedSlot) {
+      return res.status(404).json({
+        success: false,
+        message: "AdminSlot not found",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "AdminSlot deleted successfully",
+      data: deletedSlot,
     });
   } catch (error) {
     console.error(error);
