@@ -1069,7 +1069,7 @@ exports.rescheduleSession = async (req, res) => {
 
 exports.rescheduleSessionByAdmin = async (req, res) => {
   try {
-    const { newDate, start, end, reason, message, sessionIndex } = req.body;
+   const { newDate, start, end, reason, message, sessionIndex, region } = req.body;
 
     if (!newDate || !start || !end || !reason) {
       return res.status(400).json({
@@ -1106,7 +1106,7 @@ exports.rescheduleSessionByAdmin = async (req, res) => {
 
     // 3️⃣ Find AdminSlot for NEW date
 
-    const region = schedule.region;
+    // const region = schedule.region;
 
     // Find ANY slot first by region (to get timezone)
     const sampleSlot = await AdminSlot.findOne({ region });
