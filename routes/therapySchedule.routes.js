@@ -24,6 +24,7 @@ router.get("/user/:id", controller.getUserById);
 router.patch("/:id/status", controller.updateApprovalStatus);
 router.delete("/:id", controller.deleteSchedule);
 router.patch("/:id/reschedule", controller.rescheduleSession);
+router.patch("/:id/AdminReschedule", controller.rescheduleSessionByAdmin);
 router.put("/:id", controller.updateTherapySchedule); //general-purpose update API
 router.get("/payment-status/:therapyScheduleId",controller.getPaymentStatusByScheduleId);
 
