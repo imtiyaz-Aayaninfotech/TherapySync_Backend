@@ -1105,20 +1105,35 @@ exports.rescheduleSessionByAdmin = async (req, res) => {
     const oldSession = schedule.sessions[idx];
 
     // 3️⃣ Find AdminSlot for NEW date
+
     const region = schedule.region;
 
+    // Find ANY slot first by region (to get timezone)
+    const sampleSlot = await AdminSlot.findOne({ region });
+
+    if (!sampleSlot) {
+      return res.status(400).json({
+        message: "No working hours configured for this region",
+      });
+    }
+
+    const adminTz = sampleSlot.timezone;
+
+    // Convert selected date to correct UTC range
     const startOfDay = moment
-      .tz(newDate, "YYYY-MM-DD", "UTC")
+      .tz(newDate, "YYYY-MM-DD", adminTz)
       .startOf("day")
+      .utc()
       .toDate();
 
     const endOfDay = moment
-      .tz(newDate, "YYYY-MM-DD", "UTC")
+      .tz(newDate, "YYYY-MM-DD", adminTz)
       .endOf("day")
+      .utc()
       .toDate();
 
     const newSlotDoc = await AdminSlot.findOne({
-      region: region,
+      region,
       date: {
         $gte: startOfDay,
         $lte: endOfDay,
@@ -1130,8 +1145,6 @@ exports.rescheduleSessionByAdmin = async (req, res) => {
         message: `Admin has not set working hours for ${newDate}`,
       });
     }
-
-    const adminTz = newSlotDoc.timezone;
 
     // 4️⃣ Validate time format (ADMIN TIME)
     const adminStartMoment = moment.tz(
