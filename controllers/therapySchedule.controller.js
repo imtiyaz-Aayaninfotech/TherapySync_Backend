@@ -1069,7 +1069,8 @@ exports.rescheduleSession = async (req, res) => {
 
 exports.rescheduleSessionByAdmin = async (req, res) => {
   try {
-   const { newDate, start, end, reason, message, sessionIndex, region } = req.body;
+    const { newDate, start, end, reason, message, sessionIndex, region } =
+      req.body;
 
     if (!newDate || !start || !end || !reason) {
       return res.status(400).json({
@@ -1104,54 +1105,54 @@ exports.rescheduleSessionByAdmin = async (req, res) => {
 
     const oldSession = schedule.sessions[idx];
 
-   // 3️⃣ Find AdminSlot for NEW date
+    // 3️⃣ Find AdminSlot for NEW date
 
-if (!region) {
-  return res.status(400).json({
-    message: "Region is required",
-  });
-}
+    if (!region) {
+      return res.status(400).json({
+        message: "Region is required",
+      });
+    }
 
-// Convert date using region timezone FIRST
-const REGION_TIMEZONE = {
-  Berlin: "Europe/Berlin",
-  Thessaloniki: "Europe/Athens",
-};
+    // Convert date using region timezone FIRST
+    const REGION_TIMEZONE = {
+      Berlin: "Europe/Berlin",
+      Thessaloniki: "Europe/Athens",
+    };
 
-const adminTz = REGION_TIMEZONE[region];
+    const adminTz = REGION_TIMEZONE[region];
 
-if (!adminTz) {
-  return res.status(400).json({
-    message: "Invalid region",
-  });
-}
+    if (!adminTz) {
+      return res.status(400).json({
+        message: "Invalid region",
+      });
+    }
 
-// Convert selected date to UTC range correctly
-const startOfDay = moment
-  .tz(newDate, "YYYY-MM-DD", adminTz)
-  .startOf("day")
-  .utc()
-  .toDate();
+    // Convert selected date to UTC range correctly
+    const startOfDay = moment
+      .tz(newDate, "YYYY-MM-DD", adminTz)
+      .startOf("day")
+      .utc()
+      .toDate();
 
-const endOfDay = moment
-  .tz(newDate, "YYYY-MM-DD", adminTz)
-  .endOf("day")
-  .utc()
-  .toDate();
+    const endOfDay = moment
+      .tz(newDate, "YYYY-MM-DD", adminTz)
+      .endOf("day")
+      .utc()
+      .toDate();
 
-const newSlotDoc = await AdminSlot.findOne({
-  region: region,
-  date: {
-    $gte: startOfDay,
-    $lte: endOfDay,
-  },
-});
+    const newSlotDoc = await AdminSlot.findOne({
+      region: region,
+      date: {
+        $gte: startOfDay,
+        $lte: endOfDay,
+      },
+    });
 
-if (!newSlotDoc) {
-  return res.status(400).json({
-    message: `Admin has not set working hours for ${newDate}`,
-  });
-}
+    if (!newSlotDoc) {
+      return res.status(400).json({
+        message: `Admin has not set working hours for ${newDate}`,
+      });
+    }
 
     // 4️⃣ Validate time format (ADMIN TIME)
     const adminStartMoment = moment.tz(
