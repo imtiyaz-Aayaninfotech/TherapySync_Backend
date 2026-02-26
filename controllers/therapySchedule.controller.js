@@ -1104,47 +1104,54 @@ exports.rescheduleSessionByAdmin = async (req, res) => {
 
     const oldSession = schedule.sessions[idx];
 
-    // 3️⃣ Find AdminSlot for NEW date
+   // 3️⃣ Find AdminSlot for NEW date
 
-    // const region = schedule.region;
+if (!region) {
+  return res.status(400).json({
+    message: "Region is required",
+  });
+}
 
-    // Find ANY slot first by region (to get timezone)
-    const sampleSlot = await AdminSlot.findOne({ region });
+// Convert date using region timezone FIRST
+const REGION_TIMEZONE = {
+  Berlin: "Europe/Berlin",
+  Thessaloniki: "Europe/Athens",
+};
 
-    if (!sampleSlot) {
-      return res.status(400).json({
-        message: "No working hours configured for this region",
-      });
-    }
+const adminTz = REGION_TIMEZONE[region];
 
-    const adminTz = sampleSlot.timezone;
+if (!adminTz) {
+  return res.status(400).json({
+    message: "Invalid region",
+  });
+}
 
-    // Convert selected date to correct UTC range
-    const startOfDay = moment
-      .tz(newDate, "YYYY-MM-DD", adminTz)
-      .startOf("day")
-      .utc()
-      .toDate();
+// Convert selected date to UTC range correctly
+const startOfDay = moment
+  .tz(newDate, "YYYY-MM-DD", adminTz)
+  .startOf("day")
+  .utc()
+  .toDate();
 
-    const endOfDay = moment
-      .tz(newDate, "YYYY-MM-DD", adminTz)
-      .endOf("day")
-      .utc()
-      .toDate();
+const endOfDay = moment
+  .tz(newDate, "YYYY-MM-DD", adminTz)
+  .endOf("day")
+  .utc()
+  .toDate();
 
-    const newSlotDoc = await AdminSlot.findOne({
-      region,
-      date: {
-        $gte: startOfDay,
-        $lte: endOfDay,
-      },
-    });
+const newSlotDoc = await AdminSlot.findOne({
+  region: region,
+  date: {
+    $gte: startOfDay,
+    $lte: endOfDay,
+  },
+});
 
-    if (!newSlotDoc) {
-      return res.status(400).json({
-        message: `Admin has not set working hours for ${newDate}`,
-      });
-    }
+if (!newSlotDoc) {
+  return res.status(400).json({
+    message: `Admin has not set working hours for ${newDate}`,
+  });
+}
 
     // 4️⃣ Validate time format (ADMIN TIME)
     const adminStartMoment = moment.tz(
