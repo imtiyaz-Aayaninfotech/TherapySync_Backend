@@ -1105,10 +1105,30 @@ exports.rescheduleSessionByAdmin = async (req, res) => {
     const oldSession = schedule.sessions[idx];
 
     // 3️⃣ Find AdminSlot for NEW date
+    // First get region from schedule
+    const region = schedule.region;
+
+    const REGION_TIMEZONE = {
+      Berlin: "Europe/Berlin",
+      Thessaloniki: "Europe/Athens",
+    };
+
+    const adminTz = REGION_TIMEZONE[region];
+
+    const startOfDay = moment
+      .tz(newDate, "YYYY-MM-DD", adminTz)
+      .startOf("day")
+      .toDate();
+    const endOfDay = moment
+      .tz(newDate, "YYYY-MM-DD", adminTz)
+      .endOf("day")
+      .toDate();
+
     const newSlotDoc = await AdminSlot.findOne({
+      region: region,
       date: {
-        $gte: moment(newDate).startOf("day").toDate(),
-        $lt: moment(newDate).endOf("day").toDate(),
+        $gte: startOfDay,
+        $lte: endOfDay,
       },
     });
 
