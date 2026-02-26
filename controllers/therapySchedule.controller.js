@@ -1087,8 +1087,14 @@ exports.rescheduleSessionByAdmin = async (req, res) => {
     // 2️⃣ Determine session index
     let idx =
       sessionIndex !== undefined && sessionIndex !== null
-        ? sessionIndex
+        ? parseInt(sessionIndex, 10)
         : schedule.sessions.length - 1;
+
+    if (isNaN(idx)) {
+      return res.status(400).json({
+        message: "Invalid session index",
+      });
+    }
 
     if (idx < 0 || idx >= schedule.sessions.length) {
       return res.status(400).json({
