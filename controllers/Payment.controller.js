@@ -1,13 +1,15 @@
-const moment = require('moment');
-const Payment = require('../models/Payment.model');
-const { createPayment, getPaymentStatus } = require('../services/mollie.service');
-const TherapySchedule = require('../models/therapySchedule.model');
-const Pricing = require('../models/Pricing.model');
-const Meeting = require('../models/meeting.model');
-const User = require('../models/user.model');
-const { createZoomMeeting } = require('../services/zoom.service');
-const sendSessionSummaryEmail = require('../utils/sendSessionSummaryEmail');
-
+const moment = require("moment");
+const Payment = require("../models/Payment.model");
+const {
+  createPayment,
+  getPaymentStatus,
+} = require("../services/mollie.service");
+const TherapySchedule = require("../models/therapySchedule.model");
+const Pricing = require("../models/Pricing.model");
+const Meeting = require("../models/meeting.model");
+const User = require("../models/user.model");
+const { createZoomMeeting } = require("../services/zoom.service");
+const sendSessionSummaryEmail = require("../utils/sendSessionSummaryEmail");
 
 // exports.initiateBookingPayment = async (req, res) => {
 //   try {
@@ -144,7 +146,9 @@ exports.initiateBookingPayment = async (req, res) => {
 
     // Validate input
     if (!therapyScheduleId || !method) {
-      return res.status(400).json({ error: "TherapySchedule ID & method are required" });
+      return res
+        .status(400)
+        .json({ error: "TherapySchedule ID & method are required" });
     }
 
     const schedule = await TherapySchedule.findById(therapyScheduleId);
@@ -153,10 +157,15 @@ exports.initiateBookingPayment = async (req, res) => {
     // Pricing lookup
     const pricing = await Pricing.findOne({
       categoryId: schedule.category_id,
-      durationMinutes: schedule.sessions && schedule.sessions.length > 0 ?
-        moment(schedule.sessions[0].end, "hh:mm A").diff(moment(schedule.sessions[0].start, "hh:mm A"), "minutes") : undefined,
+      durationMinutes:
+        schedule.sessions && schedule.sessions.length > 0
+          ? moment(schedule.sessions[0].end, "hh:mm A").diff(
+              moment(schedule.sessions[0].start, "hh:mm A"),
+              "minutes",
+            )
+          : undefined,
       sessionCount: schedule.sessions.length,
-      status: "active"
+      status: "active",
     });
     if (!pricing) {
       return res.status(400).json({ error: "Matching pricing not found." });
@@ -171,7 +180,9 @@ exports.initiateBookingPayment = async (req, res) => {
     // 1️⃣ Single session: only full payment allowed
     if (isSingleSession) {
       if (paymentOption !== "full") {
-        return res.status(400).json({ error: "Single sessions require full payment." });
+        return res
+          .status(400)
+          .json({ error: "Single sessions require full payment." });
       }
       const fullPayment = await Payment.create({
         category_id: schedule.category_id,
@@ -180,8 +191,8 @@ exports.initiateBookingPayment = async (req, res) => {
         sessionPlan: schedule.sessionPlan,
         price: totalPrice,
         method,
-        paymentStatus: 'pending',
-        paymentType: 'full'
+        paymentStatus: "pending",
+        paymentType: "full",
       });
       const molliePayment = await createPayment(
         totalPrice,
@@ -189,7 +200,7 @@ exports.initiateBookingPayment = async (req, res) => {
         // `${process.env.CLIENT_URL}/payment-success?id=${fullPayment._id}`,
         `${process.env.CLIENT_URL}/payment.html?id=${fullPayment._id}`,
         `${process.env.SERVER_URL}`,
-        method
+        method,
       );
       fullPayment.transactionId = molliePayment.id;
       await fullPayment.save();
@@ -200,7 +211,7 @@ exports.initiateBookingPayment = async (req, res) => {
     }
 
     // 2️⃣ Package: Initial split payment (booking fee)
-    if (paymentOption === 'split') {
+    if (paymentOption === "split") {
       const bookingPayment = await Payment.create({
         category_id: schedule.category_id,
         userId: schedule.user,
@@ -208,15 +219,15 @@ exports.initiateBookingPayment = async (req, res) => {
         sessionPlan: schedule.sessionPlan,
         price: bookingFeeAmount,
         method,
-        paymentStatus: 'pending',
-        paymentType: 'bookingFee',
+        paymentStatus: "pending",
+        paymentType: "bookingFee",
       });
       const molliePayment = await createPayment(
         bookingFeeAmount,
         `Booking fee for therapy schedule ${therapyScheduleId}`,
         `${process.env.CLIENT_URL}/payment.html?id=${bookingPayment._id}`,
         `${process.env.SERVER_URL}`,
-        method
+        method,
       );
       bookingPayment.transactionId = molliePayment.id;
       await bookingPayment.save();
@@ -227,23 +238,27 @@ exports.initiateBookingPayment = async (req, res) => {
     }
 
     // 3️⃣ Package: Final payment logic
-    if (paymentOption === 'final') {
+    if (paymentOption === "final") {
       // Ensure booking fee paid
       const paidBookingFee = await Payment.findOne({
         therapyScheduleId,
-        paymentType: 'bookingFee',
-        paymentStatus: 'paid'
+        paymentType: "bookingFee",
+        paymentStatus: "paid",
       });
       if (!paidBookingFee) {
-        return res.status(400).json({ error: 'Booking fee not paid yet or does not exist' });
+        return res
+          .status(400)
+          .json({ error: "Booking fee not paid yet or does not exist" });
       }
       // Check for duplicate final payment
       const existingFinalPayment = await Payment.findOne({
         therapyScheduleId,
-        paymentType: 'finalPayment'
+        paymentType: "finalPayment",
       });
       if (existingFinalPayment) {
-        return res.status(400).json({ error: 'Final payment already initiated' });
+        return res
+          .status(400)
+          .json({ error: "Final payment already initiated" });
       }
       const finalPayment = await Payment.create({
         category_id: schedule.category_id,
@@ -252,15 +267,15 @@ exports.initiateBookingPayment = async (req, res) => {
         sessionPlan: schedule.sessionPlan,
         price: finalPaymentAmount,
         method,
-        paymentType: 'finalPayment',
-        paymentStatus: 'pending'
+        paymentType: "finalPayment",
+        paymentStatus: "pending",
       });
       const molliePayment = await createPayment(
         finalPaymentAmount,
         `Final payment for therapy schedule ${therapyScheduleId}`,
         `${process.env.CLIENT_URL}/payment.html?id=${finalPayment._id}`,
         `${process.env.SERVER_URL}`,
-        method
+        method,
       );
       finalPayment.transactionId = molliePayment.id;
       await finalPayment.save();
@@ -271,8 +286,9 @@ exports.initiateBookingPayment = async (req, res) => {
     }
 
     // 4️⃣ Package: Full payment case (customer chooses or less than 48h to session)
-    const hoursToSession = (new Date(schedule.sessions[0].date) - new Date()) / (1000 * 60 * 60);
-    if (hoursToSession <= 48 || paymentOption === 'full') {
+    const hoursToSession =
+      (new Date(schedule.sessions[0].date) - new Date()) / (1000 * 60 * 60);
+    if (hoursToSession <= 48 || paymentOption === "full") {
       const fullPayment = await Payment.create({
         category_id: schedule.category_id,
         userId: schedule.user,
@@ -280,15 +296,15 @@ exports.initiateBookingPayment = async (req, res) => {
         sessionPlan: schedule.sessionPlan,
         price: totalPrice,
         method,
-        paymentStatus: 'pending',
-        paymentType: 'full',
+        paymentStatus: "pending",
+        paymentType: "full",
       });
       const molliePayment = await createPayment(
         totalPrice,
         `Full payment for therapy schedule ${therapyScheduleId}`,
         `${process.env.CLIENT_URL}/payment.html?id=${fullPayment._id}`,
         `${process.env.SERVER_URL}`,
-        method
+        method,
       );
       fullPayment.transactionId = molliePayment.id;
       await fullPayment.save();
@@ -299,14 +315,16 @@ exports.initiateBookingPayment = async (req, res) => {
     }
 
     // If none matched, invalid payment option
-    return res.status(400).json({ error: 'Invalid payment option or conditions not met.' });
-
+    return res
+      .status(400)
+      .json({ error: "Invalid payment option or conditions not met." });
   } catch (err) {
     console.error("Error in initiateBookingPayment:", err);
-    res.status(500).json({ error: err.message || 'Failed to initiate payment' });
+    res
+      .status(500)
+      .json({ error: err.message || "Failed to initiate payment" });
   }
 };
-
 
 /*Confirms payment updates isPaid and paymentType
 Deletes schedule if no payment after 30 minutes (only if paymentType is null)
@@ -457,17 +475,25 @@ exports.paymentWebhook = async (req, res) => {
     const mollieData = await getPaymentStatus(paymentId);
 
     // Delete TherapySchedule on Mollie failure states
-    if (["authorized", "canceled", "expired", "failed"].includes(mollieData.status)) {
+    if (
+      ["authorized", "canceled", "expired", "failed"].includes(
+        mollieData.status,
+      )
+    ) {
       const paymentRecord = await Payment.findOne({ transactionId: paymentId });
       if (paymentRecord) {
-        await TherapySchedule.findByIdAndDelete(paymentRecord.therapyScheduleId);
-        await Payment.deleteMany({ therapyScheduleId: paymentRecord.therapyScheduleId });
+        await TherapySchedule.findByIdAndDelete(
+          paymentRecord.therapyScheduleId,
+        );
+        await Payment.deleteMany({
+          therapyScheduleId: paymentRecord.therapyScheduleId,
+        });
       }
       return res.status(200).json({
         status: 200,
         success: true,
         message: `TherapySchedule deleted due to payment status: ${mollieData.status}`,
-        data: {}
+        data: {},
       });
     }
 
@@ -476,13 +502,13 @@ exports.paymentWebhook = async (req, res) => {
       mollieData.status === "paid"
         ? "paid"
         : ["failed", "canceled"].includes(mollieData.status)
-        ? "failed"
-        : mollieData.status;
+          ? "failed"
+          : mollieData.status;
 
     const paymentRecord = await Payment.findOneAndUpdate(
       { transactionId: paymentId },
       { paymentStatus: updatedStatus },
-      { new: true }
+      { new: true },
     );
 
     if (!paymentRecord) {
@@ -490,7 +516,7 @@ exports.paymentWebhook = async (req, res) => {
         status: 200,
         success: true,
         message: "NO PAYMENT FOUND, IGNORED",
-        data: {}
+        data: {},
       });
     }
 
@@ -501,57 +527,66 @@ exports.paymentWebhook = async (req, res) => {
         paymentType: paymentRecord.paymentType,
         expiresAt: null, // stop auto-deletion
         isApproved: "approved",
-        status: "approved"
-      });   
+        status: "approved",
+      });
 
       // Fetch related user & schedule
       const user = await User.findById(paymentRecord.userId);
-      const schedule = await TherapySchedule.findById(paymentRecord.therapyScheduleId);
+      const schedule = await TherapySchedule.findById(
+        paymentRecord.therapyScheduleId,
+      );
 
-      if (user && schedule && schedule.sessions && schedule.sessions.length > 0) {
+      if (
+        user &&
+        schedule &&
+        schedule.sessions &&
+        schedule.sessions.length > 0
+      ) {
         const sessionDetails = [];
 
         for (const session of schedule.sessions) {
           // const sessionDateStr = moment(session.date).format('YYYY-MM-DD');
           // const startTime = moment(`${sessionDateStr} ${session.start}`, 'YYYY-MM-DD hh:mm A').toDate();
           // const endTime = moment(`${sessionDateStr} ${session.end}`, 'YYYY-MM-DD hh:mm A').toDate();
-            // const startTime = moment(
-            //   `${sessionDateStr} ${session.start}`,
-            //   'YYYY-MM-DD HH:mm',
-            //   true
-            // ).toDate();
+          // const startTime = moment(
+          //   `${sessionDateStr} ${session.start}`,
+          //   'YYYY-MM-DD HH:mm',
+          //   true
+          // ).toDate();
 
-            // const endTime = moment(
-            //   `${sessionDateStr} ${session.end}`,
-            //   'YYYY-MM-DD HH:mm',
-            //   true
-            // ).toDate();
-            const adminTz =
-  schedule.region === "Thessaloniki"
-    ? "Europe/Athens"
-    : "Europe/Berlin";
+          // const endTime = moment(
+          //   `${sessionDateStr} ${session.end}`,
+          //   'YYYY-MM-DD HH:mm',
+          //   true
+          // ).toDate();
+          const adminTz =
+            schedule.region === "Thessaloniki"
+              ? "Europe/Athens"
+              : "Europe/Berlin";
 
-const sessionDateStr = moment
-  .utc(session.date)
-  .tz(adminTz)
-  .format('YYYY-MM-DD');
+          const sessionDateStr = moment
+            .utc(session.date)
+            .tz(adminTz)
+            .format("YYYY-MM-DD");
 
-const startTime = moment.tz(
-  `${sessionDateStr} ${session.start}`,
-  'YYYY-MM-DD HH:mm',
-  adminTz
-).utc().toDate();
+          const startTime = moment
+            .tz(
+              `${sessionDateStr} ${session.start}`,
+              "YYYY-MM-DD HH:mm",
+              adminTz,
+            )
+            .utc()
+            .toDate();
 
-const endTime = moment.tz(
-  `${sessionDateStr} ${session.end}`,
-  'YYYY-MM-DD HH:mm',
-  adminTz
-).utc().toDate();
+          const endTime = moment
+            .tz(`${sessionDateStr} ${session.end}`, "YYYY-MM-DD HH:mm", adminTz)
+            .utc()
+            .toDate();
 
           try {
             const zoomMeeting = await createZoomMeeting(
               `Therapy Session for ${user.name}`,
-              startTime.toISOString()
+              startTime.toISOString(),
             );
 
             await Meeting.create({
@@ -564,34 +599,44 @@ const endTime = moment.tz(
               scheduledEndTime: session.end,
               scheduledAt: startTime,
               scheduledEnd: endTime,
-              status: 'scheduled',
+              status: "scheduled",
               startedAt: null,
               endedAt: null,
-              notes: '',
-              attended: false
+              notes: "",
+              attended: false,
             });
 
             sessionDetails.push({
-              date: moment(session.date).format('dddd, MMMM Do YYYY'),
+              date: moment(session.date).format("dddd, MMMM Do YYYY"),
               start: session.start,
               end: session.end,
-              meetingLink: zoomMeeting.join_url
+              meetingLink: zoomMeeting.join_url,
             });
           } catch (zoomErr) {
-            console.error(`Zoom meeting creation failed for session on ${startTime.toISOString()}`, zoomErr);
+            console.error(
+              `Zoom meeting creation failed for session on ${startTime.toISOString()}`,
+              zoomErr,
+            );
             // continue with next session
           }
         }
 
         // Send combined session summary email (non-blocking)
-        sendSessionSummaryEmail(user.email, user.name, sessionDetails)
-          .catch(err => console.error('Error sending session summary email:', err));
+        sendSessionSummaryEmail(user.email, user.name, sessionDetails).catch(
+          (err) => console.error("Error sending session summary email:", err),
+        );
       }
     }
 
     // Auto-delete unpaid schedules after 15 mins
-    const schedule = await TherapySchedule.findById(paymentRecord.therapyScheduleId);
-    if (schedule && schedule.isPaid === false && schedule.paymentType === null) {
+    const schedule = await TherapySchedule.findById(
+      paymentRecord.therapyScheduleId,
+    );
+    if (
+      schedule &&
+      schedule.isPaid === false &&
+      schedule.paymentType === null
+    ) {
       const creationTime = new Date(schedule.createdAt);
       const now = new Date();
       const diffMins = (now - creationTime) / (1000 * 60);
@@ -601,8 +646,9 @@ const endTime = moment.tz(
         return res.status(200).json({
           status: 200,
           success: true,
-          message: "AUTO-DELETED TherapySchedule after 15 minutes with no payment",
-          data: {}
+          message:
+            "AUTO-DELETED TherapySchedule after 15 minutes with no payment",
+          data: {},
         });
       }
     }
@@ -627,7 +673,7 @@ const endTime = moment.tz(
       status: 200,
       success: true,
       message: "OK",
-      data: {}
+      data: {},
     });
   } catch (error) {
     console.error("Webhook error:", error);
@@ -635,11 +681,10 @@ const endTime = moment.tz(
       status: 500,
       success: false,
       message: "Webhook processing failed",
-      data: {}
+      data: {},
     });
   }
 };
-
 
 exports.updatePaymentFromMollie = async (req, res) => {
   try {
@@ -658,8 +703,8 @@ exports.updatePaymentFromMollie = async (req, res) => {
       mollieData.status === "paid"
         ? "paid"
         : mollieData.status === "failed" || mollieData.status === "canceled"
-        ? "failed"
-        : mollieData.status;
+          ? "failed"
+          : mollieData.status;
 
     let cardDetails = {};
     if (mollieData.details && mollieData.details.card) {
@@ -693,22 +738,20 @@ exports.updatePaymentFromMollie = async (req, res) => {
   }
 };
 
-
-
 exports.getPaymentByTransactionId = async (req, res) => {
   try {
     const { transactionId } = req.params; // actually Mongo _id now
     const payment = await Payment.findById(transactionId)
-      .populate('category_id')
-      .populate('userId');
+      .populate("category_id")
+      .populate("userId");
 
     if (!payment) {
-      return res.status(404).json({ error: 'Payment not found' });
+      return res.status(404).json({ error: "Payment not found" });
     }
 
     res.json(payment);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: 'Error fetching payment details' });
+    res.status(500).json({ error: "Error fetching payment details" });
   }
 };
