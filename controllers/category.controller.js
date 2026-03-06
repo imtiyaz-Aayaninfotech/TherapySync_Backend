@@ -80,6 +80,37 @@ exports.getAllCategories = async (req, res) => {
   }
 };
 
+exports.getAllCategoriesAdmin = async (req, res) => {
+  try {
+    const { lang = "en" } = req.query;
+
+    // Fetch ALL categories (no status filter)
+    const categories = await Category.find({});
+
+    const data = categories.map((cat) => {
+      const germanAbout = getGermanAboutTherapy(cat.category, lang);
+
+      return {
+        ...cat.toObject(),
+        category: t(cat.category, lang),
+        type: t(cat.type, lang),
+        aboutTherapy: germanAbout || cat.aboutTherapy,
+      };
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: t("All categories fetched successfully", lang),
+      data,
+    });
+  } catch (err) {
+    return res.status(500).json({
+      success: false,
+      message: "Fetch error",
+      error: err.message,
+    });
+  }
+};
 
 // Get Category by ID
 exports.getCategoryById = async (req, res) => {

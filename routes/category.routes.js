@@ -16,6 +16,8 @@ router.post(
   controller.addCategory
 );
 router.get('/', controller.getAllCategories);
+router.get('/Admin', controller.getAllCategoriesAdmin);
+
 router.get('/:id', controller.getCategoryById);
 // router.put('/:id', controller.updateCategory);
 router.put(
