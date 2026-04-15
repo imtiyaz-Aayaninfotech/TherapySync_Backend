@@ -1,7 +1,7 @@
-const Category = require('../models/category.model');
-const { categoryValidation } = require('../validations/category.validation');
-const deleteFromS3 = require('../utils/aws/deleteFromS3');
-const { t, getGermanAboutTherapy  } = require("../utils/i18n");
+const Category = require("../models/category.model");
+const { categoryValidation } = require("../validations/category.validation");
+const deleteFromS3 = require("../utils/aws/deleteFromS3");
+const { t, getGermanAboutTherapy } = require("../utils/i18n");
 
 // Add Category
 exports.addCategory = async (req, res) => {
@@ -32,20 +32,19 @@ exports.addCategory = async (req, res) => {
     res.status(201).json({
       status: 201,
       success: true,
-      message: 'Category added successfully',
+      message: "Category added successfully",
       data: newCategory,
     });
   } catch (err) {
-    console.error('Add Category Error:', err);
+    console.error("Add Category Error:", err);
     res.status(500).json({
       status: 500,
       success: false,
-      message: 'Internal server error',
+      message: "Internal server error",
       error: err.message,
     });
   }
 };
-
 
 exports.getAllCategories = async (req, res) => {
   try {
@@ -112,26 +111,33 @@ exports.getAllCategoriesAdmin = async (req, res) => {
   }
 };
 
-// Get Category by ID
 exports.getCategoryById = async (req, res) => {
   try {
     const category = await Category.findById(req.params.id);
     if (!category) {
-      return res.status(404).json({ status: 404, success: false, message: "Category not found" });
+      return res
+        .status(404)
+        .json({ status: 404, success: false, message: "Category not found" });
     }
 
     res.status(200).json({
       status: 200,
       success: true,
       message: "Category fetched successfully",
-      data: category
+      data: category,
     });
   } catch (err) {
-    res.status(500).json({ status: 500, success: false, message: "Error fetching category", error: err.message });
+    res
+      .status(500)
+      .json({
+        status: 500,
+        success: false,
+        message: "Error fetching category",
+        error: err.message,
+      });
   }
 };
 
-// Update Category
 exports.updateCategory = async (req, res) => {
   try {
     const { id } = req.params;
@@ -142,7 +148,7 @@ exports.updateCategory = async (req, res) => {
 
     const oldCategory = await Category.findById(id);
     if (!oldCategory) {
-      return res.status(404).json({ message: 'Category not found' });
+      return res.status(404).json({ message: "Category not found" });
     }
 
     const updatedData = {
@@ -160,24 +166,25 @@ exports.updateCategory = async (req, res) => {
     if (imageUrl && oldCategory.image) await deleteFromS3(oldCategory.image);
     if (videoUrl && oldCategory.video) await deleteFromS3(oldCategory.video);
 
-    const updated = await Category.findByIdAndUpdate(id, updatedData, { new: true });
+    const updated = await Category.findByIdAndUpdate(id, updatedData, {
+      new: true,
+    });
 
     res.json({
-      message: 'Category updated successfully',
+      message: "Category updated successfully",
       data: updated,
     });
   } catch (err) {
-    console.error('Update Error:', err);
-    res.status(500).json({ message: 'Update error', error: err.message });
+    console.error("Update Error:", err);
+    res.status(500).json({ message: "Update error", error: err.message });
   }
 };
 
-// Delete Category
 exports.deleteCategory = async (req, res) => {
   try {
     const category = await Category.findById(req.params.id);
     if (!category) {
-      return res.status(404).json({ message: 'Category not found' });
+      return res.status(404).json({ message: "Category not found" });
     }
 
     // ✅ Delete S3 files FIRST
@@ -188,10 +195,10 @@ exports.deleteCategory = async (req, res) => {
     await Category.findByIdAndDelete(req.params.id);
 
     res.status(200).json({
-      message: 'Category and S3 files deleted successfully',
+      message: "Category and S3 files deleted successfully",
     });
   } catch (err) {
-    console.error('❌ Delete Error:', err);
-    res.status(500).json({ message: 'Server error', error: err.message });
+    console.error("❌ Delete Error:", err);
+    res.status(500).json({ message: "Server error", error: err.message });
   }
 };
