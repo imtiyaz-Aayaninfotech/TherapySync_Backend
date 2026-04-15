@@ -63,8 +63,8 @@ const userSchema = new mongoose.Schema(
         "Romania",
         "Poland",
         "Czech Republic",
-        "Berlin",
-        "Thessaloniki",
+        "Germany",
+        "Greece"
       ],
       required: true,
     },

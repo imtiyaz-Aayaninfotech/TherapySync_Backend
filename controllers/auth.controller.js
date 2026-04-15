@@ -24,8 +24,10 @@ const countryTimeZoneMap = {
   Romania: "Europe/Bucharest",
   Poland: "Europe/Warsaw",
   "Czech Republic": "Europe/Prague",
-  Berlin: "Europe/Berlin",
-  Thessaloniki: "Europe/Athens",
+  Germany: "Europe/Berlin",
+  Greece: "Europe/Athens",
+  // Berlin: "Europe/Berlin",
+  // Thessaloniki: "Europe/Athens",
 };
 
 

@@ -44,8 +44,8 @@ const allowedCountries = [
   'Romania',
   'Poland',
   'Czech Republic',
-  'Berlin',
-  'Thessaloniki'
+  'Germany',
+  'Greece'
 ];
 
 
