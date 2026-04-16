@@ -7,6 +7,7 @@ const Pricing = require("../models/Pricing.model");
 const Category = require("../models/category.model");
 const moment = require("moment-timezone");
 const REGION_TIMEZONE = require("../utils/regionTimezone");
+const Meeting = require("../models/meeting.model");
 
 /*
  Mongo shell RUN one time 
@@ -1251,6 +1252,21 @@ exports.rescheduleSessionByAdmin = async (req, res) => {
     schedule.sessions[idx].date = normalizedNewDate;
     schedule.sessions[idx].start = adminStart;
     schedule.sessions[idx].end = adminEnd;
+
+    // Update related meeting if exists
+    await Meeting.findOneAndUpdate(
+      {
+        therapySchedule: schedule._id,
+        user: schedule.user,
+        status: { $in: ["scheduled", "ongoing"] },
+      },
+      {
+        $set: {
+          scheduledAt: adminStartMoment.clone().utc().toDate(),
+          scheduledEnd: adminEndMoment.clone().utc().toDate(),
+        },
+      },
+    );
 
     schedule.status = "rescheduled";
 
