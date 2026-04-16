@@ -1115,8 +1115,8 @@ exports.rescheduleSessionByAdmin = async (req, res) => {
 
     // Convert date using region timezone FIRST
     const REGION_TIMEZONE = {
-      Berlin: "Europe/Berlin",
-      Thessaloniki: "Europe/Athens",
+      Germany: "Europe/Berlin",
+      Greece: "Europe/Athens",
     };
 
     const adminTz = REGION_TIMEZONE[region];
