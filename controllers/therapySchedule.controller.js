@@ -1050,6 +1050,21 @@ exports.rescheduleSession = async (req, res) => {
     schedule.sessions[idx].start = adminStart;
     schedule.sessions[idx].end = adminEnd;
 
+    // this is upadte meting db 
+    // await Meeting.findOneAndUpdate(
+    //   {
+    //     therapySchedule: schedule._id,
+    //     user: schedule.user,
+    //     status: { $in: ["scheduled", "ongoing"] },
+    //   },
+    //   {
+    //     $set: {
+    //       scheduledAt: adminStartMoment.clone().utc().toDate(),
+    //       scheduledEnd: adminEndMoment.clone().utc().toDate(),
+    //     },
+    //   },
+    // );
+
     schedule.status = "rescheduled";
 
     const updated = await schedule.save();
