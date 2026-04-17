@@ -559,26 +559,30 @@ exports.paymentWebhook = async (req, res) => {
           //   'YYYY-MM-DD HH:mm',
           //   true
           // ).toDate();
-          const adminTz =
-            schedule.region === "Thessaloniki"
-              ? "Europe/Athens"
-              : "Europe/Berlin";
+          // const adminTz =
+          //   schedule.region === "Thessaloniki"
+          //     ? "Europe/Athens"
+          //     : "Europe/Berlin";
 
-         const sessionDateStr = moment(session.date)
-  .tz(adminTz)
-  .format("YYYY-MM-DD");
+          const adminTz = schedule.adminTimezone;
 
-const startTime = moment.tz(
-  `${sessionDateStr} ${session.start}`,
-  "YYYY-MM-DD HH:mm",
-  adminTz
-).utc().toDate();
+          const sessionDateStr = moment(session.date)
+            .tz(adminTz)
+            .format("YYYY-MM-DD");
 
-const endTime = moment.tz(
-  `${sessionDateStr} ${session.end}`,
-  "YYYY-MM-DD HH:mm",
-  adminTz
-).utc().toDate();
+          const startTime = moment
+            .tz(
+              `${sessionDateStr} ${session.start}`,
+              "YYYY-MM-DD HH:mm",
+              adminTz,
+            )
+            .utc()
+            .toDate();
+
+          const endTime = moment
+            .tz(`${sessionDateStr} ${session.end}`, "YYYY-MM-DD HH:mm", adminTz)
+            .utc()
+            .toDate();
 
           try {
             const zoomMeeting = await createZoomMeeting(
