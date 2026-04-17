@@ -368,7 +368,7 @@ exports.createSchedule = async (req, res) => {
       const adminDateStr = adminStart.format("YYYY-MM-DD");
 
       const normalizedDate = moment
-        .tz(adminDateStr, "YYYY-MM-DD", adminTz)
+  .tz(adminDateStr, "YYYY-MM-DD", finalAdminTz)
         .startOf("day")
         .toDate();
 
@@ -527,8 +527,8 @@ exports.adminCreateBooking = async (req, res) => {
     const adminTz = adminSlot.timezone;
 
     // ✅ Normalize date in ADMIN timezone
-    const normalizedDate = moment
-      .tz(firstSession.date, "YYYY-MM-DD", adminTz)
+   const normalizedDate = moment
+  .tz(adminDateStr, "YYYY-MM-DD", finalAdminTz)
       .startOf("day")
       .toDate();
 
@@ -1139,11 +1139,11 @@ exports.rescheduleSessionByAdmin = async (req, res) => {
 
     const adminTz = REGION_TIMEZONE[region];
 
-    if (!adminTz) {
-      return res.status(400).json({
-        message: "Invalid region",
-      });
-    }
+    // if (!adminTz) {
+    //   return res.status(400).json({
+    //     message: "Invalid region",
+    //   });
+    // }
 
     // Convert selected date to UTC range correctly
     const startOfDay = moment
