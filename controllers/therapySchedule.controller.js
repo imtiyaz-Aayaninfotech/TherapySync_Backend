@@ -264,6 +264,8 @@ exports.createSchedule = async (req, res) => {
     const convertedSessions = [];
     let durationMinutes = null;
 
+    let finalAdminTz = null;
+
     for (const session of sessions) {
       if (!session.date || !session.start || !session.end) {
         return res.status(400).json({
@@ -338,7 +340,7 @@ exports.createSchedule = async (req, res) => {
           adminSlot = slotDoc;
           adminStart = convertedStart;
           adminEnd = convertedEnd;
-          finalAdminTz = tempAdminTz; 
+          finalAdminTz = tempAdminTz;
           break;
         }
       }
@@ -368,7 +370,7 @@ exports.createSchedule = async (req, res) => {
       const adminDateStr = adminStart.format("YYYY-MM-DD");
 
       const normalizedDate = moment
-  .tz(adminDateStr, "YYYY-MM-DD", finalAdminTz)
+        .tz(adminDateStr, "YYYY-MM-DD", finalAdminTz)
         .startOf("day")
         .toDate();
 
@@ -419,6 +421,12 @@ exports.createSchedule = async (req, res) => {
       });
     }
 
+    if (!finalAdminTz) {
+  return res.status(400).json({
+    message: "Admin timezone not resolved",
+  });
+}
+
     const pricing = await Pricing.findOne({
       categoryId: category_id,
       durationMinutes: Number(durationMinutes),
@@ -441,7 +449,7 @@ exports.createSchedule = async (req, res) => {
       isPaid: false,
       status: "pending",
       expiresAt: Date.now() + 15 * 60 * 1000,
-     adminTimezone: finalAdminTz,
+      adminTimezone: finalAdminTz,
     });
 
     const saved = await newSchedule.save();
@@ -527,8 +535,8 @@ exports.adminCreateBooking = async (req, res) => {
     const adminTz = adminSlot.timezone;
 
     // ✅ Normalize date in ADMIN timezone
-   const normalizedDate = moment
-  .tz(adminDateStr, "YYYY-MM-DD", finalAdminTz)
+    const normalizedDate = moment
+      .tz(adminDateStr, "YYYY-MM-DD", finalAdminTz)
       .startOf("day")
       .toDate();
 
@@ -1052,7 +1060,7 @@ exports.rescheduleSession = async (req, res) => {
     schedule.sessions[idx].start = adminStart;
     schedule.sessions[idx].end = adminEnd;
 
-    // this is upadte meting db 
+    // this is upadte meting db
     // await Meeting.findOneAndUpdate(
     //   {
     //     therapySchedule: schedule._id,
