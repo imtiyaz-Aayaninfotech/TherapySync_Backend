@@ -324,7 +324,7 @@ exports.createSchedule = async (req, res) => {
       let adminSlot = null;
       let adminStart = null;
       let adminEnd = null;
-      let finalAdminTz = null;
+   
 
       for (const slotDoc of possibleAdminSlots) {
         const tempAdminTz = slotDoc.timezone;
@@ -422,10 +422,10 @@ exports.createSchedule = async (req, res) => {
     }
 
     if (!finalAdminTz) {
-  return res.status(400).json({
-    message: "Admin timezone not resolved",
-  });
-}
+      return res.status(400).json({
+        message: "Admin timezone not resolved",
+      });
+    }
 
     const pricing = await Pricing.findOne({
       categoryId: category_id,
