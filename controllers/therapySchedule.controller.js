@@ -294,25 +294,32 @@ exports.createSchedule = async (req, res) => {
       // ✅ PRODUCTION SAFE ADMIN SLOT FIND
       const allAdminSlots = await AdminSlot.find();
 
+      // const possibleAdminSlots = allAdminSlots.filter((slotDoc) => {
+      //   const adminTz = slotDoc.timezone;
+
+      //   const startOfDayUTC = moment
+      //     .tz(session.date, "YYYY-MM-DD", adminTz)
+      //     .startOf("day")
+      //     .utc();
+
+      //   const endOfDayUTC = moment
+      //     .tz(session.date, "YYYY-MM-DD", adminTz)
+      //     .endOf("day")
+      //     .utc();
+
+      //   return moment(slotDoc.date).isBetween(
+      //     startOfDayUTC,
+      //     endOfDayUTC,
+      //     null,
+      //     "[)",
+      //   );
+      // });
       const possibleAdminSlots = allAdminSlots.filter((slotDoc) => {
         const adminTz = slotDoc.timezone;
 
-        const startOfDayUTC = moment
-          .tz(session.date, "YYYY-MM-DD", adminTz)
-          .startOf("day")
-          .utc();
+        const slotDate = moment(slotDoc.date).tz(adminTz).format("YYYY-MM-DD");
 
-        const endOfDayUTC = moment
-          .tz(session.date, "YYYY-MM-DD", adminTz)
-          .endOf("day")
-          .utc();
-
-        return moment(slotDoc.date).isBetween(
-          startOfDayUTC,
-          endOfDayUTC,
-          null,
-          "[)",
-        );
+        return slotDate === session.date;
       });
 
       if (!possibleAdminSlots.length) {
@@ -324,7 +331,6 @@ exports.createSchedule = async (req, res) => {
       let adminSlot = null;
       let adminStart = null;
       let adminEnd = null;
-   
 
       for (const slotDoc of possibleAdminSlots) {
         const tempAdminTz = slotDoc.timezone;
