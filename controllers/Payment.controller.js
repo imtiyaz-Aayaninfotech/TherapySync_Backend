@@ -596,7 +596,7 @@ exports.paymentWebhook = async (req, res) => {
               payment: paymentRecord._id,
               meetingLink: zoomMeeting.join_url,
                scheduledDate: moment(startTime).startOf("day").toDate()
-              scheduledStart: session.start,
+              scheduledStart: session.start,  
               scheduledEndTime: session.end,
               scheduledAt: startTime,
               scheduledEnd: endTime,
