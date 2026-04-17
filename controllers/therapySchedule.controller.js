@@ -675,7 +675,7 @@ exports.getAllSchedules = async (req, res) => {
 exports.getScheduleById = async (req, res) => {
   try {
     const schedule = await TherapySchedule.findById(req.params.id)
-      .populate("user", "name email")
+      .populate("user", "name email timeZone")
       .populate("category_id", "name");
 
     if (!schedule) {
@@ -687,18 +687,54 @@ exports.getScheduleById = async (req, res) => {
       });
     }
 
-    res.status(200).json({
+    const userTz = schedule.user.timeZone;
+    const adminTz = schedule.adminTimezone;
+
+    const convertedSessions = schedule.sessions.map((session) => {
+
+      // ✅ FIXED LINE
+      const adminDateStr = moment(session.date)
+        .tz(adminTz)
+        .format("YYYY-MM-DD");
+
+      const adminStart = moment.tz(
+        `${adminDateStr} ${session.start}`,
+        "YYYY-MM-DD HH:mm",
+        adminTz
+      );
+
+      const adminEnd = moment.tz(
+        `${adminDateStr} ${session.end}`,
+        "YYYY-MM-DD HH:mm",
+        adminTz
+      );
+
+      const userStart = adminStart.clone().tz(userTz);
+      const userEnd = adminEnd.clone().tz(userTz);
+
+      return {
+        ...session.toObject(),
+        date: userStart.format("YYYY-MM-DD"),
+        start: userStart.format("HH:mm"),
+        end: userEnd.format("HH:mm"),
+      };
+    });
+
+    return res.status(200).json({
       status: 200,
       success: true,
       message: "Schedule fetched successfully",
-      data: schedule,
+      data: {
+        ...schedule.toObject(),
+        sessions: convertedSessions,
+      },
     });
+
   } catch (err) {
     res.status(400).json({
       status: 400,
       success: false,
       message: err.message,
-      data: [],
     });
   }
 };
@@ -752,7 +788,9 @@ exports.getUserById = async (req, res) => {
 
         // 🔥 Step 2: Build admin datetime correctly
 
-        const adminDateStr = moment(session.date).format("YYYY-MM-DD");
+       const adminDateStr = moment(session.date)
+  .tz(adminTz)
+  .format("YYYY-MM-DD");
 
         // Step 2: Build full admin datetime
         const adminDateTime = moment.tz(
