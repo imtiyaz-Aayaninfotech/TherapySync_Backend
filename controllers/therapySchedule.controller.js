@@ -322,13 +322,13 @@ exports.createSchedule = async (req, res) => {
       let adminSlot = null;
       let adminStart = null;
       let adminEnd = null;
-      let adminTz = null;
+      let finalAdminTz = null;
 
       for (const slotDoc of possibleAdminSlots) {
-        adminTz = slotDoc.timezone;
+        const tempAdminTz = slotDoc.timezone;
 
-        const convertedStart = userStart.clone().tz(adminTz);
-        const convertedEnd = userEnd.clone().tz(adminTz);
+        const convertedStart = userStart.clone().tz(tempAdminTz);
+        const convertedEnd = userEnd.clone().tz(tempAdminTz);
 
         const slotExists = slotDoc.slotGroups.some((group) =>
           group.slots.some((s) => s.start === convertedStart.format("HH:mm")),
@@ -338,6 +338,7 @@ exports.createSchedule = async (req, res) => {
           adminSlot = slotDoc;
           adminStart = convertedStart;
           adminEnd = convertedEnd;
+          finalAdminTz = tempAdminTz; 
           break;
         }
       }
@@ -440,7 +441,7 @@ exports.createSchedule = async (req, res) => {
       isPaid: false,
       status: "pending",
       expiresAt: Date.now() + 15 * 60 * 1000,
-      adminTimezone: adminTz,
+     adminTimezone: finalAdminTz,
     });
 
     const saved = await newSchedule.save();
