@@ -440,7 +440,7 @@ exports.createSchedule = async (req, res) => {
       isPaid: false,
       status: "pending",
       expiresAt: Date.now() + 15 * 60 * 1000,
-      adminTimezone: adminTz
+      adminTimezone: adminTz,
     });
 
     const saved = await newSchedule.save();
@@ -617,6 +617,7 @@ exports.adminCreateBooking = async (req, res) => {
       isApproved: "approved",
       status: "approved",
       paymentType: "full",
+      adminTimezone: adminTz,
     });
 
     const savedSchedule = await newSchedule.save();
