@@ -564,10 +564,7 @@ exports.paymentWebhook = async (req, res) => {
               ? "Europe/Athens"
               : "Europe/Berlin";
 
-          const sessionDateStr = moment
-            .utc(session.date)
-            .tz(adminTz)
-            .format("YYYY-MM-DD");
+          const sessionDateStr = moment(session.date).format("YYYY-MM-DD");
 
           const startTime = moment
             .tz(

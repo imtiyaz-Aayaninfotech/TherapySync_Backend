@@ -440,6 +440,7 @@ exports.createSchedule = async (req, res) => {
       isPaid: false,
       status: "pending",
       expiresAt: Date.now() + 15 * 60 * 1000,
+      adminTimezone: adminTz
     });
 
     const saved = await newSchedule.save();
@@ -724,19 +725,18 @@ exports.getUserById = async (req, res) => {
         // We detect using date matching from AdminSlot collection
         // (Because admin may be Berlin or Athens)
 
-        const adminSlot =
-          schedule._doc.region === "Thessaloniki"
-            ? "Europe/Athens"
-            : "Europe/Berlin"; // default Berlin
+        // const adminSlot =
+        //   schedule._doc.region === "Thessaloniki"
+        //     ? "Europe/Athens"
+        //     : "Europe/Berlin"; // default Berlin
 
-        const adminTz = adminSlot;
+        // const adminTz = adminSlot;
+
+        const adminTz = schedule.adminTimezone;
 
         // 🔥 Step 2: Build admin datetime correctly
 
-        const adminDateStr = moment
-          .utc(session.date)
-          .tz(adminTz)
-          .format("YYYY-MM-DD");
+        const adminDateStr = moment(session.date).format("YYYY-MM-DD");
 
         // Step 2: Build full admin datetime
         const adminDateTime = moment.tz(

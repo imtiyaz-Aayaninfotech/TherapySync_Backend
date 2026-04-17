@@ -15,7 +15,7 @@ const SessionSchema = new mongoose.Schema(
       required: true,
     },
   },
-  { _id: false }
+  { _id: false },
 );
 
 // RescheduleSchema declared here or imported
@@ -43,7 +43,7 @@ const RescheduleSchema = new mongoose.Schema(
       default: Date.now,
     },
   },
-  { _id: false }
+  { _id: false },
 );
 
 const TherapyScheduleSchema = new mongoose.Schema(
@@ -126,10 +126,14 @@ const TherapyScheduleSchema = new mongoose.Schema(
       default: null,
       index: { expireAfterSeconds: 0 }, // TTL index auto-deletes at this time
     },
+    adminTimezone: {
+      type: String,
+      required: true,
+    },
   },
   {
     timestamps: true,
-  }
+  },
 );
 
 module.exports = mongoose.model("TherapySchedule", TherapyScheduleSchema);
