@@ -739,6 +739,91 @@ exports.getScheduleById = async (req, res) => {
   }
 };
 
+// exports.getUserById = async (req, res) => {
+//   try {
+//     const userId = req.params.id;
+
+//     const User = require("../models/user.model");
+//     const userDoc = await User.findById(userId);
+
+//     if (!userDoc) {
+//       return res.status(404).json({
+//         status: 404,
+//         success: false,
+//         message: "User not found",
+//         data: [],
+//       });
+//     }
+
+//     const userTz = userDoc.timeZone;
+
+//     const schedules = await TherapySchedule.find({ user: userId })
+//       .populate("user", "name email timeZone")
+//       .populate("category_id", "name");
+
+//     if (!schedules || schedules.length === 0) {
+//       return res.status(404).json({
+//         status: 404,
+//         success: false,
+//         message: "No schedules found for this user",
+//         data: [],
+//       });
+//     }
+
+//     const convertedSchedules = schedules.map((schedule) => {
+//       const adminTz = schedule.adminTimezone;
+
+//       const convertedSessions = schedule.sessions.map((session) => {
+//         // ✅ IMPORTANT: NO .tz() here
+//         const adminDateStr = moment(session.date).format("YYYY-MM-DD");
+
+//         const adminStart = moment.tz(
+//           `${adminDateStr} ${session.start}`,
+//           "YYYY-MM-DD HH:mm",
+//           adminTz
+//         );
+
+//         const adminEnd = moment.tz(
+//           `${adminDateStr} ${session.end}`,
+//           "YYYY-MM-DD HH:mm",
+//           adminTz
+//         );
+
+//         const userStart = adminStart.clone().tz(userTz);
+//         const userEnd = adminEnd.clone().tz(userTz);
+
+//         return {
+//           ...session.toObject(),
+//           date: userStart.format("YYYY-MM-DD"),
+//           start: userStart.format("HH:mm"),
+//           end: userEnd.format("HH:mm"),
+//         };
+//       });
+
+//       return {
+//         ...schedule.toObject(),
+//         sessions: convertedSessions,
+//       };
+//     });
+
+//     return res.status(200).json({
+//       status: 200,
+//       success: true,
+//       message: "User schedules fetched successfully",
+//       data: convertedSchedules,
+//     });
+
+//   } catch (err) {
+//     console.error("Error fetching user schedules:", err);
+//     return res.status(400).json({
+//       status: 400,
+//       success: false,
+//       message: err.message || "An error occurred",
+//       data: [],
+//     });
+//   }
+// };
+
 exports.getUserById = async (req, res) => {
   try {
     const userId = req.params.id;
@@ -761,21 +846,15 @@ exports.getUserById = async (req, res) => {
       .populate("user", "name email timeZone")
       .populate("category_id", "name");
 
-    if (!schedules || schedules.length === 0) {
-      return res.status(404).json({
-        status: 404,
-        success: false,
-        message: "No schedules found for this user",
-        data: [],
-      });
-    }
-
     const convertedSchedules = schedules.map((schedule) => {
       const adminTz = schedule.adminTimezone;
 
       const convertedSessions = schedule.sessions.map((session) => {
-        // ✅ IMPORTANT: NO .tz() here
-        const adminDateStr = moment(session.date).format("YYYY-MM-DD");
+
+        // ✅ FIXED LINE (MOST IMPORTANT)
+        const adminDateStr = moment(session.date)
+          .tz(adminTz)
+          .format("YYYY-MM-DD");
 
         const adminStart = moment.tz(
           `${adminDateStr} ${session.start}`,
@@ -814,12 +893,11 @@ exports.getUserById = async (req, res) => {
     });
 
   } catch (err) {
-    console.error("Error fetching user schedules:", err);
-    return res.status(400).json({
+    console.error(err);
+    res.status(400).json({
       status: 400,
       success: false,
-      message: err.message || "An error occurred",
-      data: [],
+      message: err.message,
     });
   }
 };
