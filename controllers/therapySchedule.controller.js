@@ -688,7 +688,20 @@ exports.getScheduleById = async (req, res) => {
     }
 
     const userTz = schedule.user.timeZone;
-    const adminTz = schedule.adminTimezone;
+    // const adminTz = schedule.adminTimezone;
+    let adminTz = schedule.adminTimezone;
+
+// 🔥 detect correct timezone
+const slot = await AdminSlot.findOne({
+  date: {
+    $gte: moment(session.date).startOf("day").toDate(),
+    $lte: moment(session.date).endOf("day").toDate(),
+  }
+});
+
+if (slot) {
+  adminTz = slot.timezone;
+}
 
     const convertedSessions = schedule.sessions.map((session) => {
       // ✅ FIXED LINE
