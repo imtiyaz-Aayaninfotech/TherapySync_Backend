@@ -691,7 +691,6 @@ exports.getScheduleById = async (req, res) => {
     const adminTz = schedule.adminTimezone;
 
     const convertedSessions = schedule.sessions.map((session) => {
-
       // ✅ FIXED LINE
       const adminDateStr = moment(session.date)
         .tz(adminTz)
@@ -700,13 +699,13 @@ exports.getScheduleById = async (req, res) => {
       const adminStart = moment.tz(
         `${adminDateStr} ${session.start}`,
         "YYYY-MM-DD HH:mm",
-        adminTz
+        adminTz,
       );
 
       const adminEnd = moment.tz(
         `${adminDateStr} ${session.end}`,
         "YYYY-MM-DD HH:mm",
-        adminTz
+        adminTz,
       );
 
       const userStart = adminStart.clone().tz(userTz);
@@ -729,7 +728,6 @@ exports.getScheduleById = async (req, res) => {
         sessions: convertedSessions,
       },
     });
-
   } catch (err) {
     res.status(400).json({
       status: 400,
@@ -788,9 +786,9 @@ exports.getUserById = async (req, res) => {
 
         // 🔥 Step 2: Build admin datetime correctly
 
-       const adminDateStr = moment(session.date)
-  .tz(adminTz)
-  .format("YYYY-MM-DD");
+        const adminDateStr = moment(session.date)
+          .tz(adminTz)
+          .format("YYYY-MM-DD");
 
         // Step 2: Build full admin datetime
         const adminDateTime = moment.tz(
