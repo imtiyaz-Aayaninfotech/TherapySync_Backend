@@ -672,71 +672,6 @@ exports.getAllSchedules = async (req, res) => {
   }
 };
 
-// exports.getScheduleById = async (req, res) => {
-//   try {
-//     const schedule = await TherapySchedule.findById(req.params.id)
-//       .populate("user", "name email timeZone")
-//       .populate("category_id", "name");
-
-//     if (!schedule) {
-//       return res.status(404).json({
-//         status: 404,
-//         success: false,
-//         message: "Schedule not found",
-//         data: [],
-//       });
-//     }
-
-//     const userTz = schedule.user.timeZone;
-//     const adminTz = schedule.adminTimezone;
-
-//     const convertedSessions = schedule.sessions.map((session) => {
-//       // ✅ FIXED LINE
-//       const adminDateStr = moment(session.date)
-//         .tz(adminTz)
-//         .format("YYYY-MM-DD");
-
-//       const adminStart = moment.tz(
-//         `${adminDateStr} ${session.start}`,
-//         "YYYY-MM-DD HH:mm",
-//         adminTz,
-//       );
-
-//       const adminEnd = moment.tz(
-//         `${adminDateStr} ${session.end}`,
-//         "YYYY-MM-DD HH:mm",
-//         adminTz,
-//       );
-
-//       const userStart = adminStart.clone().tz(userTz);
-//       const userEnd = adminEnd.clone().tz(userTz);
-
-//       return {
-//         ...session.toObject(),
-//         date: userStart.format("YYYY-MM-DD"),
-//         start: userStart.format("HH:mm"),
-//         end: userEnd.format("HH:mm"),
-//       };
-//     });
-
-//     return res.status(200).json({
-//       status: 200,
-//       success: true,
-//       message: "Schedule fetched successfully",
-//       data: {
-//         ...schedule.toObject(),
-//         sessions: convertedSessions,
-//       },
-//     });
-//   } catch (err) {
-//     res.status(400).json({
-//       status: 400,
-//       success: false,
-//       message: err.message,
-//     });
-//   }
-// };
-
 exports.getScheduleById = async (req, res) => {
   try {
     const schedule = await TherapySchedule.findById(req.params.id)
@@ -753,12 +688,10 @@ exports.getScheduleById = async (req, res) => {
     }
 
     const userTz = schedule.user.timeZone;
+    const adminTz = schedule.adminTimezone;
 
     const convertedSessions = schedule.sessions.map((session) => {
-
-      // 🔥 KEY FIX
-      const adminTz = session.adminTimezone || schedule.adminTimezone;
-
+      // ✅ FIXED LINE
       const adminDateStr = moment(session.date)
         .tz(adminTz)
         .format("YYYY-MM-DD");
@@ -766,13 +699,13 @@ exports.getScheduleById = async (req, res) => {
       const adminStart = moment.tz(
         `${adminDateStr} ${session.start}`,
         "YYYY-MM-DD HH:mm",
-        adminTz
+        adminTz,
       );
 
       const adminEnd = moment.tz(
         `${adminDateStr} ${session.end}`,
         "YYYY-MM-DD HH:mm",
-        adminTz
+        adminTz,
       );
 
       const userStart = adminStart.clone().tz(userTz);
@@ -783,7 +716,6 @@ exports.getScheduleById = async (req, res) => {
         date: userStart.format("YYYY-MM-DD"),
         start: userStart.format("HH:mm"),
         end: userEnd.format("HH:mm"),
-        timezone: adminTz // ✅ optional (debug/clarity)
       };
     });
 
@@ -796,7 +728,6 @@ exports.getScheduleById = async (req, res) => {
         sessions: convertedSessions,
       },
     });
-
   } catch (err) {
     res.status(400).json({
       status: 400,
