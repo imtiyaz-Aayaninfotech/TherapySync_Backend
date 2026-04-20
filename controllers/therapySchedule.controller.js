@@ -1658,7 +1658,7 @@ exports.getSlotsByCategoryAndDate = async (req, res) => {
     else if (category.category === "Couples Therapy")
       sessionDurations = [60, 90];
 
-    // ✅ STEP 1: Get ALL admin slots (Berlin + Thessaloniki)
+    // ✅ STEP 1: Get ALL admin slots 
     const allAdminSlots = await AdminSlot.find().lean();
 
     if (!allAdminSlots.length) {
@@ -1747,7 +1747,8 @@ exports.getSlotsByCategoryAndDate = async (req, res) => {
           return {
             start: userStart.format("HH:mm"),
             end: userEnd.format("HH:mm"),
-            isAvailable: !isBooked,
+            // isAvailable: !isBooked,
+            isAvailable: slot.isAvailable && !isBooked
           };
         });
 
