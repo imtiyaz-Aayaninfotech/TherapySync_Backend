@@ -856,31 +856,17 @@ exports.getUserById = async (req, res) => {
           .tz(adminTz)
           .format("YYYY-MM-DD");
 
-        // const adminStart = moment.tz(
-        //   `${adminDateStr} ${session.start}`,
-        //   "YYYY-MM-DD HH:mm",
-        //   adminTz
-        // );
+        const adminStart = moment.tz(
+          `${adminDateStr} ${session.start}`,
+          "YYYY-MM-DD HH:mm",
+          adminTz
+        );
 
-        // const adminEnd = moment.tz(
-        //   `${adminDateStr} ${session.end}`,
-        //   "YYYY-MM-DD HH:mm",
-        //   adminTz
-        // );
-
-        const adminStart = moment(session.date)
-  .tz(adminTz)
-  .set({
-    hour: Number(session.start.split(":")[0]),
-    minute: Number(session.start.split(":")[1]),
-  });
-
-const adminEnd = moment(session.date)
-  .tz(adminTz)
-  .set({
-    hour: Number(session.end.split(":")[0]),
-    minute: Number(session.end.split(":")[1]),
-  });
+        const adminEnd = moment.tz(
+          `${adminDateStr} ${session.end}`,
+          "YYYY-MM-DD HH:mm",
+          adminTz
+        );
 
         const userStart = adminStart.clone().tz(userTz);
         const userEnd = adminEnd.clone().tz(userTz);
