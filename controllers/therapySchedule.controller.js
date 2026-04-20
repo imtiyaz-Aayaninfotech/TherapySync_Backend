@@ -768,50 +768,33 @@ exports.getUserById = async (req, res) => {
       });
     }
 
-    // ✅ Convert sessions to USER timezone
     const convertedSchedules = schedules.map((schedule) => {
+      const adminTz = schedule.adminTimezone;
+
       const convertedSessions = schedule.sessions.map((session) => {
-        // 🔥 Step 1: Find which admin timezone this slot belongs to
-        // We detect using date matching from AdminSlot collection
-        // (Because admin may be Berlin or Athens)
+        // ✅ IMPORTANT: NO .tz() here
+        const adminDateStr = moment(session.date).format("YYYY-MM-DD");
 
-        // const adminSlot =
-        //   schedule._doc.region === "Thessaloniki"
-        //     ? "Europe/Athens"
-        //     : "Europe/Berlin"; // default Berlin
-
-        // const adminTz = adminSlot;
-
-        const adminTz = schedule.adminTimezone;
-
-        // 🔥 Step 2: Build admin datetime correctly
-
-        const adminDateStr = moment(session.date)
-          .tz(adminTz)
-          .format("YYYY-MM-DD");
-
-        // Step 2: Build full admin datetime
-        const adminDateTime = moment.tz(
+        const adminStart = moment.tz(
           `${adminDateStr} ${session.start}`,
           "YYYY-MM-DD HH:mm",
-          adminTz,
+          adminTz
         );
 
-        const adminEndDateTime = moment.tz(
+        const adminEnd = moment.tz(
           `${adminDateStr} ${session.end}`,
           "YYYY-MM-DD HH:mm",
-          adminTz,
+          adminTz
         );
 
-        // 🔥 Step 3: Convert to user timezone
-        const userDateTime = adminDateTime.clone().tz(userTz);
-        const userEndDateTime = adminEndDateTime.clone().tz(userTz);
+        const userStart = adminStart.clone().tz(userTz);
+        const userEnd = adminEnd.clone().tz(userTz);
 
         return {
           ...session.toObject(),
-          date: userDateTime.format("YYYY-MM-DD"),
-          start: userDateTime.format("HH:mm"),
-          end: userEndDateTime.format("HH:mm"),
+          date: userStart.format("YYYY-MM-DD"),
+          start: userStart.format("HH:mm"),
+          end: userEnd.format("HH:mm"),
         };
       });
 
@@ -820,18 +803,20 @@ exports.getUserById = async (req, res) => {
         sessions: convertedSessions,
       };
     });
+
     return res.status(200).json({
       status: 200,
       success: true,
       message: "User schedules fetched successfully",
       data: convertedSchedules,
     });
+
   } catch (err) {
     console.error("Error fetching user schedules:", err);
     return res.status(400).json({
       status: 400,
       success: false,
-      message: err.message || "An error occurred while fetching user schedules",
+      message: err.message || "An error occurred",
       data: [],
     });
   }
