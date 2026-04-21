@@ -691,7 +691,6 @@ exports.getScheduleById = async (req, res) => {
     const adminTz = schedule.adminTimezone;
 
     const convertedSessions = schedule.sessions.map((session) => {
-
       // ✅ FIXED LINE
       const adminDateStr = moment(session.date)
         .tz(adminTz)
@@ -700,13 +699,13 @@ exports.getScheduleById = async (req, res) => {
       const adminStart = moment.tz(
         `${adminDateStr} ${session.start}`,
         "YYYY-MM-DD HH:mm",
-        adminTz
+        adminTz,
       );
 
       const adminEnd = moment.tz(
         `${adminDateStr} ${session.end}`,
         "YYYY-MM-DD HH:mm",
-        adminTz
+        adminTz,
       );
 
       const userStart = adminStart.clone().tz(userTz);
@@ -729,7 +728,6 @@ exports.getScheduleById = async (req, res) => {
         sessions: convertedSessions,
       },
     });
-
   } catch (err) {
     res.status(400).json({
       status: 400,
@@ -850,7 +848,6 @@ exports.getUserById = async (req, res) => {
       const adminTz = schedule.adminTimezone;
 
       const convertedSessions = schedule.sessions.map((session) => {
-
         // ✅ FIXED LINE (MOST IMPORTANT)
         const adminDateStr = moment(session.date)
           .tz(adminTz)
@@ -859,13 +856,13 @@ exports.getUserById = async (req, res) => {
         const adminStart = moment.tz(
           `${adminDateStr} ${session.start}`,
           "YYYY-MM-DD HH:mm",
-          adminTz
+          adminTz,
         );
 
         const adminEnd = moment.tz(
           `${adminDateStr} ${session.end}`,
           "YYYY-MM-DD HH:mm",
-          adminTz
+          adminTz,
         );
 
         const userStart = adminStart.clone().tz(userTz);
@@ -891,7 +888,6 @@ exports.getUserById = async (req, res) => {
       message: "User schedules fetched successfully",
       data: convertedSchedules,
     });
-
   } catch (err) {
     console.error(err);
     res.status(400).json({
@@ -1738,7 +1734,7 @@ exports.getSlotsByCategoryAndDate = async (req, res) => {
     else if (category.category === "Couples Therapy")
       sessionDurations = [60, 90];
 
-    // ✅ STEP 1: Get ALL admin slots 
+    // ✅ STEP 1: Get ALL admin slots
     const allAdminSlots = await AdminSlot.find().lean();
 
     if (!allAdminSlots.length) {
@@ -1828,7 +1824,7 @@ exports.getSlotsByCategoryAndDate = async (req, res) => {
             start: userStart.format("HH:mm"),
             end: userEnd.format("HH:mm"),
             // isAvailable: !isBooked,
-            isAvailable: slot.isAvailable && !isBooked
+            isAvailable: slot.isAvailable && !isBooked,
           };
         });
 

@@ -11,6 +11,6 @@ module.exports = {
   "Czech Republic": "Europe/Prague",
   Germany: "Europe/Berlin",
   Greece: "Europe/Athens",
-  // Berlin: "Europe/Berlin",
+  // Berlin: "Europe/Berlin",        
   // Thessaloniki: "Europe/Athens",
 };
