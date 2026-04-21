@@ -1154,16 +1154,40 @@ exports.rescheduleSession = async (req, res) => {
     }
 
     // 🔹 6️⃣ Double check booking safety (real source of truth)
-    const normalizedNewDate = moment
+    // const normalizedNewDate = moment
+    //   .tz(newDate, "YYYY-MM-DD", adminTz)
+    //   .startOf("day")
+    //   .toDate();
+
+    // const existingBooking = await TherapySchedule.findOne({
+    //   _id: { $ne: schedule._id },
+    //   "sessions.date": normalizedNewDate,
+    //   "sessions.start": adminStart,
+    //   isApproved: { $in: ["pending", "approved"] },
+    // });
+
+    const startOfDay = moment
       .tz(newDate, "YYYY-MM-DD", adminTz)
       .startOf("day")
       .toDate();
 
+    const endOfDay = moment
+      .tz(newDate, "YYYY-MM-DD", adminTz)
+      .endOf("day")
+      .toDate();
+
     const existingBooking = await TherapySchedule.findOne({
       _id: { $ne: schedule._id },
-      "sessions.date": normalizedNewDate,
-      "sessions.start": adminStart,
       isApproved: { $in: ["pending", "approved"] },
+      sessions: {
+        $elemMatch: {
+          start: adminStart,
+          date: {
+            $gte: startOfDay,
+            $lte: endOfDay,
+          },
+        },
+      },
     });
 
     if (existingBooking) {
