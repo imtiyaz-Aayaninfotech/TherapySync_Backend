@@ -433,10 +433,27 @@ exports.createSchedule = async (req, res) => {
         });
       }
 
+      const startOfDay = moment
+        .tz(session.date, "YYYY-MM-DD", finalAdminTz)
+        .startOf("day")
+        .toDate();
+
+      const endOfDay = moment
+        .tz(session.date, "YYYY-MM-DD", finalAdminTz)
+        .endOf("day")
+        .toDate();
+
       const existingBooking = await TherapySchedule.findOne({
-        "sessions.date": normalizedDate,
-        "sessions.start": adminStart.format("HH:mm"),
         isApproved: { $in: ["pending", "approved"] },
+        sessions: {
+          $elemMatch: {
+            start: adminStart.format("HH:mm"),
+            date: {
+              $gte: startOfDay,
+              $lte: endOfDay,
+            },
+          },
+        },
       });
 
       if (existingBooking) {
@@ -1649,13 +1666,38 @@ exports.deleteAdminSlotById = async (req, res) => {
 //     else if (category.category === "Couples Therapy")
 //       sessionDurations = [60, 90];
 
-//     // 🔹 Get admin slots
-//     const adminSlots = await AdminSlot.find({
-//       date: {
-//         $gte: moment(date).startOf("day").toDate(),
-//         $lt: moment(date).endOf("day").toDate(),
-//       },
-//     }).lean();
+//     // ✅ STEP 1: Get ALL admin slots
+//     const allAdminSlots = await AdminSlot.find().lean();
+
+//     if (!allAdminSlots.length) {
+//       return res.status(200).json({
+//         success: true,
+//         message: "No working hours set",
+//         data: {},
+//       });
+//     }
+
+//     // ✅ STEP 2: Filter slots by timezone-safe date matching
+//     const adminSlots = allAdminSlots.filter((slot) => {
+//       const adminTz = slot.timezone;
+
+//       const startOfDayUTC = moment
+//         .tz(date, "YYYY-MM-DD", adminTz)
+//         .startOf("day")
+//         .utc();
+
+//       const endOfDayUTC = moment
+//         .tz(date, "YYYY-MM-DD", adminTz)
+//         .endOf("day")
+//         .utc();
+
+//       return moment(slot.date).isBetween(
+//         startOfDayUTC,
+//         endOfDayUTC,
+//         null,
+//         "[)",
+//       );
+//     });
 
 //     if (!adminSlots.length) {
 //       return res.status(200).json({
@@ -1665,18 +1707,14 @@ exports.deleteAdminSlotById = async (req, res) => {
 //       });
 //     }
 
-//     // 🔹 Get active pricing for this category
+//     // ✅ Pricing
 //     const pricingData = await Pricing.find({
-//       categoryId: categoryId,
+//       categoryId,
 //       status: "active",
 //     }).lean();
 
-//     // 🔥 NEW: Get booked schedules (SOURCE OF TRUTH)
+//     // ✅ Get booked schedules using same timezone-safe logic
 //     const bookedSchedules = await TherapySchedule.find({
-//       "sessions.date": {
-//         $gte: moment(date).startOf("day").toDate(),
-//         $lt: moment(date).endOf("day").toDate(),
-//       },
 //       isApproved: { $in: ["pending", "approved"] },
 //     }).lean();
 
@@ -1704,19 +1742,21 @@ exports.deleteAdminSlotById = async (req, res) => {
 //           const userStart = adminStart.clone().tz(userTz);
 //           const userEnd = adminEnd.clone().tz(userTz);
 
-//           // 🔥 CHECK REAL BOOKINGS
 //           const isBooked = bookedSchedules.some((sch) =>
-//             sch.sessions.some(
-//               (s) =>
+//             sch.sessions.some((s) => {
+//               const sessionStartUTC = moment(s.date).utc();
+//               return (
 //                 s.start === slot.start &&
-//                 moment(s.date).format("YYYY-MM-DD") === date,
-//             ),
+//                 sessionStartUTC.isSame(adminStart.clone().utc(), "minute")
+//               );
+//             }),
 //           );
 
 //           return {
 //             start: userStart.format("HH:mm"),
 //             end: userEnd.format("HH:mm"),
-//             isAvailable: !isBooked,
+//             // isAvailable: !isBooked,
+//             isAvailable: slot.isAvailable && !isBooked,
 //           };
 //         });
 
@@ -1866,10 +1906,12 @@ exports.getSlotsByCategoryAndDate = async (req, res) => {
 
           const isBooked = bookedSchedules.some((sch) =>
             sch.sessions.some((s) => {
-              const sessionStartUTC = moment(s.date).utc();
+              const sessionDate = moment(s.date)
+                .tz(adminTz)
+                .format("YYYY-MM-DD");
+
               return (
-                s.start === slot.start &&
-                sessionStartUTC.isSame(adminStart.clone().utc(), "minute")
+                s.start === slot.start && sessionDate === date // 🔥 SAME DATE MATCH
               );
             }),
           );
