@@ -1096,12 +1096,17 @@ exports.rescheduleSession = async (req, res) => {
     const userTz = userDoc.timeZone;
 
     // 🔹 4️⃣ Find AdminSlot for NEW date
-    const newSlotDoc = await AdminSlot.findOne({
-      date: {
-        $gte: moment(newDate).startOf("day").toDate(),
-        $lt: moment(newDate).endOf("day").toDate(),
-      },
-    });
+    const allAdminSlots = await AdminSlot.find();
+
+const newSlotDoc = allAdminSlots.find((slotDoc) => {
+  const adminTz = slotDoc.timezone;
+
+  const slotDate = moment(slotDoc.date)
+    .tz(adminTz)
+    .format("YYYY-MM-DD");
+
+  return slotDate === newDate;
+});
 
     if (!newSlotDoc) {
       return res.status(400).json({
