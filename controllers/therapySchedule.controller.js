@@ -15,6 +15,7 @@ const Meeting = require("../models/meeting.model");
 */
 
 // exports.createSchedule = async (req, res) => {
+//   const lockedSlots = [];
 //   try {
 //     const { sessions, category_id, sessionPlan, user } = req.body;
 
@@ -24,7 +25,6 @@ const Meeting = require("../models/meeting.model");
 //       });
 //     }
 
-//     // 🔹 Validate sessionPlan
 //     if (sessionPlan === "single" && sessions.length !== 1) {
 //       return res.status(400).json({
 //         message: "Single session must contain exactly 1 session",
@@ -37,7 +37,6 @@ const Meeting = require("../models/meeting.model");
 //       });
 //     }
 
-//     // 🔹 Get User
 //     const User = require("../models/user.model");
 //     const userDoc = await User.findById(user);
 
@@ -50,7 +49,8 @@ const Meeting = require("../models/meeting.model");
 //     const convertedSessions = [];
 //     let durationMinutes = null;
 
-//     // 🔥 LOOP ALL SESSIONS (IMPORTANT FOR PACKAGE)
+//     let finalAdminTz = null;
+
 //     for (const session of sessions) {
 //       if (!session.date || !session.start || !session.end) {
 //         return res.status(400).json({
@@ -76,12 +76,35 @@ const Meeting = require("../models/meeting.model");
 //         });
 //       }
 
-//       // 🔹 Find AdminSlot for that date
-//       const possibleAdminSlots = await AdminSlot.find({
-//         date: {
-//           $gte: moment(session.date).startOf("day").toDate(),
-//           $lt: moment(session.date).endOf("day").toDate(),
-//         },
+//       // ✅ PRODUCTION SAFE ADMIN SLOT FIND
+//       const allAdminSlots = await AdminSlot.find();
+
+//       // const possibleAdminSlots = allAdminSlots.filter((slotDoc) => {
+//       //   const adminTz = slotDoc.timezone;
+
+//       //   const startOfDayUTC = moment
+//       //     .tz(session.date, "YYYY-MM-DD", adminTz)
+//       //     .startOf("day")
+//       //     .utc();
+
+//       //   const endOfDayUTC = moment
+//       //     .tz(session.date, "YYYY-MM-DD", adminTz)
+//       //     .endOf("day")
+//       //     .utc();
+
+//       //   return moment(slotDoc.date).isBetween(
+//       //     startOfDayUTC,
+//       //     endOfDayUTC,
+//       //     null,
+//       //     "[)",
+//       //   );
+//       // });
+//       const possibleAdminSlots = allAdminSlots.filter((slotDoc) => {
+//         const adminTz = slotDoc.timezone;
+
+//         const slotDate = moment(slotDoc.date).tz(adminTz).format("YYYY-MM-DD");
+
+//         return slotDate === session.date;
 //       });
 
 //       if (!possibleAdminSlots.length) {
@@ -93,14 +116,12 @@ const Meeting = require("../models/meeting.model");
 //       let adminSlot = null;
 //       let adminStart = null;
 //       let adminEnd = null;
-//       let adminTz = null;
 
-//       // 🔥 Match correct admin slot by timezone
 //       for (const slotDoc of possibleAdminSlots) {
-//         adminTz = slotDoc.timezone;
+//         const tempAdminTz = slotDoc.timezone;
 
-//         const convertedStart = userStart.clone().tz(adminTz);
-//         const convertedEnd = userEnd.clone().tz(adminTz);
+//         const convertedStart = userStart.clone().tz(tempAdminTz);
+//         const convertedEnd = userEnd.clone().tz(tempAdminTz);
 
 //         const slotExists = slotDoc.slotGroups.some((group) =>
 //           group.slots.some((s) => s.start === convertedStart.format("HH:mm")),
@@ -110,6 +131,7 @@ const Meeting = require("../models/meeting.model");
 //           adminSlot = slotDoc;
 //           adminStart = convertedStart;
 //           adminEnd = convertedEnd;
+//           finalAdminTz = tempAdminTz;
 //           break;
 //         }
 //       }
@@ -128,7 +150,6 @@ const Meeting = require("../models/meeting.model");
 //         });
 //       }
 
-//       // 🔹 Ensure all sessions same duration
 //       if (durationMinutes === null) {
 //         durationMinutes = currentDuration;
 //       } else if (durationMinutes !== currentDuration) {
@@ -140,11 +161,10 @@ const Meeting = require("../models/meeting.model");
 //       const adminDateStr = adminStart.format("YYYY-MM-DD");
 
 //       const normalizedDate = moment
-//         .tz(adminDateStr, "YYYY-MM-DD", adminTz)
+//         .tz(adminDateStr, "YYYY-MM-DD", finalAdminTz)
 //         .startOf("day")
 //         .toDate();
 
-//       // 🔹 Check slot existence
 //       let foundSlot = null;
 
 //       for (const group of adminSlot.slotGroups) {
@@ -163,7 +183,6 @@ const Meeting = require("../models/meeting.model");
 //         });
 //       }
 
-//       // 🔹 Double check booking
 //       const existingBooking = await TherapySchedule.findOne({
 //         "sessions.date": normalizedDate,
 //         "sessions.start": adminStart.format("HH:mm"),
@@ -176,11 +195,16 @@ const Meeting = require("../models/meeting.model");
 //         });
 //       }
 
-//       // 🔹 Lock slot
+//       // foundSlot.isAvailable = false;
+//       // await adminSlot.save();
+
+//       // 🔒 LOCK SLOT
 //       foundSlot.isAvailable = false;
 //       await adminSlot.save();
 
-//       // 🔹 Add converted session
+//       // track locked slot for rollback safety
+//       lockedSlots.push({ adminSlot, foundSlot });
+
 //       convertedSessions.push({
 //         date: normalizedDate,
 //         start: adminStart.format("HH:mm"),
@@ -188,7 +212,12 @@ const Meeting = require("../models/meeting.model");
 //       });
 //     }
 
-//     // 🔹 Pricing validation (AFTER loop)
+//     if (!finalAdminTz) {
+//       return res.status(400).json({
+//         message: "Admin timezone not resolved",
+//       });
+//     }
+
 //     const pricing = await Pricing.findOne({
 //       categoryId: category_id,
 //       durationMinutes: Number(durationMinutes),
@@ -202,7 +231,6 @@ const Meeting = require("../models/meeting.model");
 //       });
 //     }
 
-//     // 🔹 Save schedule
 //     const newSchedule = new TherapySchedule({
 //       category_id,
 //       user,
@@ -212,6 +240,7 @@ const Meeting = require("../models/meeting.model");
 //       isPaid: false,
 //       status: "pending",
 //       expiresAt: Date.now() + 15 * 60 * 1000,
+//       adminTimezone: finalAdminTz,
 //     });
 
 //     const saved = await newSchedule.save();
@@ -265,8 +294,14 @@ exports.createSchedule = async (req, res) => {
     let durationMinutes = null;
 
     let finalAdminTz = null;
+    const userTimeSessions = [];
 
     for (const session of sessions) {
+      userTimeSessions.push({
+        date: session.date,
+        start: session.start,
+        end: session.end,
+      });
       if (!session.date || !session.start || !session.end) {
         return res.status(400).json({
           message: "Each session requires date, start and end",
@@ -451,6 +486,7 @@ exports.createSchedule = async (req, res) => {
       user,
       sessionPlan,
       sessions: convertedSessions,
+      userTimeSessions: userTimeSessions,
       price: pricing.totalPrice,
       isPaid: false,
       status: "pending",
@@ -1163,6 +1199,15 @@ exports.rescheduleSession = async (req, res) => {
     schedule.sessions[idx].start = adminStart;
     schedule.sessions[idx].end = adminEnd;
 
+    // ✅ UPDATE USER TIME (original input)
+    if (schedule.userTimeSessions && schedule.userTimeSessions.length > idx) {
+      schedule.userTimeSessions[idx] = {
+        date: newDate,
+        start: start,
+        end: end,
+      };
+    }
+
     // this is upadte meting db
     // await Meeting.findOneAndUpdate(
     //   {
@@ -1380,6 +1425,15 @@ exports.rescheduleSessionByAdmin = async (req, res) => {
     schedule.sessions[idx].date = normalizedNewDate;
     schedule.sessions[idx].start = adminStart;
     schedule.sessions[idx].end = adminEnd;
+
+    // ✅ UPDATE USER TIME ALSO (important sync)
+    if (schedule.userTimeSessions && schedule.userTimeSessions.length > idx) {
+      schedule.userTimeSessions[idx] = {
+        date: newDate,
+        start: start,
+        end: end,
+      };
+    }
 
     // Update related meeting if exists
     await Meeting.findOneAndUpdate(

@@ -75,6 +75,16 @@ const TherapyScheduleSchema = new mongoose.Schema(
       },
       required: true,
     },
+    userTimeSessions: {
+      type: [
+        {
+          date: Date,
+          start: String,
+          end: String,
+        },
+      ],
+      default: [],
+    },
     price: {
       type: Number,
       default: 0,
