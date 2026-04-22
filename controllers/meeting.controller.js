@@ -4,12 +4,12 @@ const moment = require("moment");
 const User = require("../models/user.model");
 const nodemailer = require("nodemailer");
 require("dotenv").config();
+const TherapySchedule = require("../models/therapySchedule.model");
 
 // Helper for sending consistent error responses
 const sendError = (res, code, message) =>
   res.status(code).json({ success: false, message });
 
-// Get all meetings for a user by user ID param
 // exports.getMeetingsByUserOnly = async (req, res) => {
 //   try {
 //     let userId = req.params.userId?.trim();
@@ -18,16 +18,42 @@ const sendError = (res, code, message) =>
 //       return sendError(res, 400, "User ID required");
 //     }
 
-//     // Validate ObjectId
 //     if (!mongoose.Types.ObjectId.isValid(userId)) {
 //       return sendError(res, 400, "Invalid User ID");
 //     }
+
+//     // 🔥 Get user timezone
+//     const User = require("../models/user.model");
+//     const userDoc = await User.findById(userId);
+
+//     if (!userDoc) {
+//       return sendError(res, 404, "User not found");
+//     }
+
+//     const userTz = userDoc.timeZone;
 
 //     const meetings = await Meeting.find({ user: userId }).sort({
 //       scheduledAt: 1,
 //     });
 
-//     return res.json({ success: true, data: meetings });
+//     // ✅ Convert UTC → USER TIMEZONE
+//     const convertedMeetings = meetings.map((meeting) => {
+//       const startUserTime = moment
+//         .utc(meeting.scheduledAt)
+//         .tz(userTz);
+
+//       const endUserTime = moment
+//         .utc(meeting.scheduledEnd)
+//         .tz(userTz);
+
+//       return {
+//         ...meeting.toObject(),
+//         scheduledAt: startUserTime.format("YYYY-MM-DD HH:mm"),
+//         scheduledEnd: endUserTime.format("YYYY-MM-DD HH:mm"),
+//       };
+//     });
+
+//     return res.json({ success: true, data: convertedMeetings });
 //   } catch (error) {
 //     console.error("Get meetings by user error:", error);
 //     return sendError(res, 500, "Server error fetching meetings");
@@ -36,54 +62,83 @@ const sendError = (res, code, message) =>
 
 exports.getMeetingsByUserOnly = async (req, res) => {
   try {
-    let userId = req.params.userId?.trim();
+    const userId = req.params.userId;
 
-    if (!userId) {
-      return sendError(res, 400, "User ID required");
-    }
-
-    if (!mongoose.Types.ObjectId.isValid(userId)) {
-      return sendError(res, 400, "Invalid User ID");
-    }
-
-    // 🔥 Get user timezone
     const User = require("../models/user.model");
     const userDoc = await User.findById(userId);
 
     if (!userDoc) {
-      return sendError(res, 404, "User not found");
+      return res.status(404).json({ message: "User not found" });
     }
 
     const userTz = userDoc.timeZone;
 
-    const meetings = await Meeting.find({ user: userId }).sort({
-      scheduledAt: 1,
+    const meetings = await Meeting.find({ user: userId }).sort({ createdAt: 1 });
+    const schedules = await TherapySchedule.find({ user: userId });
+
+    const scheduleMap = {};
+    schedules.forEach((s) => {
+      scheduleMap[s._id.toString()] = s;
     });
 
-    // ✅ Convert UTC → USER TIMEZONE
-    const convertedMeetings = meetings.map((meeting) => {
-      const startUserTime = moment
-        .utc(meeting.scheduledAt)
-        .tz(userTz);
+    const grouped = {};
 
-      const endUserTime = moment
-        .utc(meeting.scheduledEnd)
-        .tz(userTz);
+    for (const meeting of meetings) {
+      const scheduleId = meeting.therapySchedule?.toString();
+      const schedule = scheduleMap[scheduleId];
 
-      return {
+      if (!schedule) continue;
+
+      if (!grouped[scheduleId]) {
+        grouped[scheduleId] = {
+          therapyScheduleId: scheduleId,
+          meetings: [],
+        };
+      }
+
+      const index = grouped[scheduleId].meetings.length;
+
+      let finalStart = null;
+      let finalEnd = null;
+
+      // 🔥 ALWAYS use userTimeSessions by index
+      const session = schedule.userTimeSessions?.[index];
+
+      if (session) {
+        const sDate = moment(session.date)
+          .tz(userTz)
+          .format("YYYY-MM-DD");
+
+        finalStart = `${sDate} ${session.start}`;
+        finalEnd = `${sDate} ${session.end}`;
+      } else {
+        // fallback → meeting original
+        finalStart = moment(meeting.scheduledAt)
+          .tz(userTz)
+          .format("YYYY-MM-DD HH:mm");
+
+        finalEnd = moment(meeting.scheduledEnd)
+          .tz(userTz)
+          .format("YYYY-MM-DD HH:mm");
+      }
+
+      grouped[scheduleId].meetings.push({
         ...meeting.toObject(),
-        scheduledAt: startUserTime.format("YYYY-MM-DD HH:mm"),
-        scheduledEnd: endUserTime.format("YYYY-MM-DD HH:mm"),
-      };
+        scheduledAt: finalStart,
+        scheduledEnd: finalEnd,
+      });
+    }
+
+    return res.json({
+      success: true,
+      data: Object.values(grouped),
     });
 
-    return res.json({ success: true, data: convertedMeetings });
-  } catch (error) {
-    console.error("Get meetings by user error:", error);
-    return sendError(res, 500, "Server error fetching meetings");
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Server error" });
   }
 };
-
 
 exports.getMeetingsByUser = async (req, res) => {
   try {
