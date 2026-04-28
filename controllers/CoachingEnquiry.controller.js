@@ -1,58 +1,61 @@
-const CoachingEnquiry = require('../models/CoachingEnquiry.model');
-const Category = require('../models/category.model');
-const { coachingEnquirySchema } = require('../validations/coachingEnquiry.validator');
+const CoachingEnquiry = require("../models/CoachingEnquiry.model");
+const Category = require("../models/category.model");
+const {
+  coachingEnquirySchema,
+} = require("../validations/coachingEnquiry.validator");
+const User = require("../models/user.model");
 
 // Submit Coaching Enquiry
 exports.submitCoachingEnquiry = async (req, res) => {
   try {
-    // Validate request body with Joi, collect all errors (abortEarly: false)
-    const { error } = coachingEnquirySchema.validate(req.body, { abortEarly: false });
-    if (error) {
-      // Map each validation error to an object with field and message
-      const fieldErrors = error.details.map((err) => ({
-        field: err.path.join('.'),
-        message: err.message
-      }));
+    const { category_id, userId, organisation, message } = req.body;
+
+    // ✅ basic validation
+    if (!userId || !organisation) {
       return res.status(400).json({
-        status: 400,
         success: false,
-        message: 'Validation errors found.',
-        data: fieldErrors
+        message: "userId and organisation are required",
       });
     }
 
-    const { category_id, name, email, phoneNumber, gender, organisation } = req.body;
+    // ✅ check user
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    // ✅ check category
     const category = await Category.findById(category_id);
-    if (!category || category.category !== 'Executive Coaching') {
+    if (!category || category.category !== "Executive Coaching") {
       return res.status(400).json({
-        status: 400,
         success: false,
-        message: "Selected category is not 'Executive Coaching'",
-        data: []
+        message: "Invalid category",
       });
     }
 
+    // ✅ create enquiry (ONLY userId store)
     const enquiry = new CoachingEnquiry({
       category_id,
-      name,
-      email,
-      phoneNumber,
-      gender,
-      organisation
+      userId,
+      organisation,
+      message,
+      contactInfo: user.email || user.phoneNumber, // optional
     });
+
     await enquiry.save();
+
     return res.status(201).json({
-      status: 201,
       success: true,
-      message: 'Coaching enquiry submitted successfully.',
-      data: enquiry
+      message: "Enquiry submitted successfully",
+      data: enquiry,
     });
   } catch (error) {
     return res.status(500).json({
-      status: 500,
       success: false,
       message: error.message,
-      data: []
     });
   }
 };
@@ -60,72 +63,59 @@ exports.submitCoachingEnquiry = async (req, res) => {
 // Get all enquiries (admin) with search/filter/pagination
 exports.getAllEnquiries = async (req, res) => {
   try {
-    const { page = 1, limit = 10, search = '', status } = req.query;
+    const { page = 1, limit = 10, search = "", status } = req.query;
 
-    const query = {
-      $or: [
-        { name: { $regex: search, $options: 'i' } },
-        { email: { $regex: search, $options: 'i' } },
-        { phoneNumber: { $regex: search, $options: 'i' } }
-      ]
-    };
+    const query = {};
 
     if (status) {
       query.status = status;
     }
 
     const total = await CoachingEnquiry.countDocuments(query);
+
     const enquiries = await CoachingEnquiry.find(query)
-      .populate('category_id', 'category')
+      .populate("category_id", "category")
+      .populate("userId", "name email phoneNumber gender country") // ✅ main change
       .sort({ createdAt: -1 })
       .skip((page - 1) * limit)
       .limit(parseInt(limit));
 
-    res.status(200).json({
-      status: 200,
+    return res.status(200).json({
       success: true,
-      message: 'Enquiries fetched successfully',
       data: enquiries,
       total,
       page: parseInt(page),
-      pages: Math.ceil(total / limit)
     });
-
   } catch (error) {
-    res.status(500).json({
-      status: 500,
+    return res.status(500).json({
       success: false,
       message: error.message,
-      data: []
     });
   }
 };
 
-// Get single enquiry by ID
+// Get single enquiry by ID(admin)
 exports.getEnquiryById = async (req, res) => {
   try {
-    const enquiry = await CoachingEnquiry.findById(req.params.id).populate('category_id', 'category');
+    const enquiry = await CoachingEnquiry.findById(req.params.id)
+      .populate("category_id", "category")
+      .populate("userId", "name email phoneNumber gender country");
+
     if (!enquiry) {
       return res.status(404).json({
-        status: 404,
         success: false,
-        message: 'Enquiry not found',
-        data: []
+        message: "Enquiry not found",
       });
     }
 
-    res.status(200).json({
-      status: 200,
+    return res.status(200).json({
       success: true,
-      message: 'Enquiry fetched',
-      data: enquiry
+      data: enquiry,
     });
   } catch (error) {
-    res.status(500).json({
-      status: 500,
+    return res.status(500).json({
       success: false,
       message: error.message,
-      data: []
     });
   }
 };
@@ -133,75 +123,57 @@ exports.getEnquiryById = async (req, res) => {
 // Update enquiry status (admin)
 exports.updateEnquiryStatus = async (req, res) => {
   try {
-    const { status } = req.body;
-
-    if (!['pending', 'approved', 'rejected'].includes(status)) {
-      return res.status(400).json({
-        status: 400,
-        success: false,
-        message: 'Invalid status value',
-        data: []
-      });
-    }
+    const { status, contactInfo } = req.body;
 
     const enquiry = await CoachingEnquiry.findByIdAndUpdate(
       req.params.id,
-      { status },
-      { new: true }
+      {
+        status,
+        ...(contactInfo && { contactInfo }), // optional update
+      },
+      { new: true },
     );
 
     if (!enquiry) {
       return res.status(404).json({
-        status: 404,
         success: false,
-        message: 'Enquiry not found',
-        data: []
+        message: "Enquiry not found",
       });
     }
 
-    res.status(200).json({
-      status: 200,
+    return res.status(200).json({
       success: true,
-      message: 'Status updated successfully',
-      data: enquiry
+      message: "Updated successfully",
+      data: enquiry,
     });
-
   } catch (error) {
-    res.status(500).json({
-      status: 500,
+    return res.status(500).json({
       success: false,
       message: error.message,
-      data: []
     });
   }
 };
 
-// Delete enquiry
+// Delete enquiry(admin)
 exports.deleteEnquiry = async (req, res) => {
   try {
     const deleted = await CoachingEnquiry.findByIdAndDelete(req.params.id);
+
     if (!deleted) {
       return res.status(404).json({
-        status: 404,
         success: false,
-        message: 'Enquiry not found',
-        data: []
+        message: "Enquiry not found",
       });
     }
 
-    res.status(200).json({
-      status: 200,
+    return res.status(200).json({
       success: true,
-      message: 'Enquiry deleted successfully',
-      data: []
+      message: "Deleted successfully",
     });
-
   } catch (error) {
-    res.status(500).json({
-      status: 500,
+    return res.status(500).json({
       success: false,
       message: error.message,
-      data: []
     });
   }
 };

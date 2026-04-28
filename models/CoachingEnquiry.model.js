@@ -4,38 +4,35 @@ const coachingEnquirySchema = new mongoose.Schema({
   category_id: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "Category",
-    required: false,
   },
-  name: {
-    type: String,
-    required: true,
-    trim: true,
-  },
-  email: {
-    type: String,
-    required: true,
-    trim: true,
-  },
-  phoneNumber: {
-    type: String,
-    required: true,
-    trim: true,
-  },
-  gender: {
-    type: String,
-    enum: ["Male", "Female", "Other"],
+
+  userId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "User",
     required: true,
   },
+
   organisation: {
     type: String,
     required: true,
-    trim: true,
   },
+
+  message: {
+    type: String,
+    default: "",
+  },
+
   status: {
     type: String,
-    enum: ["pending", "approved", "rejected"],
+    enum: ["pending", "approved", "rejected", "contacted"],
     default: "pending",
   },
+
+  contactInfo: {
+    type: String,
+    default: "",
+  },
+
   createdAt: {
     type: Date,
     default: Date.now,
