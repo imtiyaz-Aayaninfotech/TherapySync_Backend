@@ -6,8 +6,8 @@ const {
   generateRefreshToken,
   verifyRefreshToken,
 } = require("../utils/jwt.util");
-const uploadSingleImage = require('../utils/aws/uploadSingleImage');
-const DeviceToken = require('../models/DeviceToken.model');
+const uploadSingleImage = require("../utils/aws/uploadSingleImage");
+const DeviceToken = require("../models/DeviceToken.model");
 
 // const generateOTP = () =>
 //   Math.floor(100000 + Math.random() * 900000).toString();
@@ -29,7 +29,6 @@ const countryTimeZoneMap = {
   // Berlin: "Europe/Berlin",
   // Thessaloniki: "Europe/Athens",
 };
-
 
 // exports.register = async (req, res) => {
 //   try {
@@ -123,19 +122,17 @@ const countryTimeZoneMap = {
 
 exports.register = async (req, res) => {
   try {
-    const {
-      email,
-      password,
-      name,
-      phoneNumber,
-      gender,
-      dateOfBirth,
-      country
-    } = req.body;
+    const { email, password, name, phoneNumber, gender, dateOfBirth, country } =
+      req.body;
 
     // ✅ Validate country
     if (!countryTimeZoneMap[country]) {
-      return res.status(400).json({ message: "Invalid country selected." });
+      return res.status(400).json({
+        message: {
+          en: "Invalid country selected.",
+          de: "Ungültiges Land ausgewählt.",
+        },
+      });
     }
 
     const timeZone = countryTimeZoneMap[country];
@@ -147,14 +144,22 @@ exports.register = async (req, res) => {
 
     if (existingUser) {
       if (existingUser.isVerified) {
-        return res.status(400).json({ message: "Email already registered." });
+        return res.status(400).json({
+          message: {
+            en: "Email already registered.",
+            de: "E-Mail ist bereits registriert.",
+          },
+        });
       }
 
       existingUser.otp = { code: otp, expiresAt: otpExpiry };
       await existingUser.save();
 
       return res.status(200).json({
-        message: "New OTP sent.",
+        message: {
+          en: "New OTP sent.",
+          de: "Neues OTP wurde gesendet.",
+        },
       });
     }
 
@@ -184,7 +189,6 @@ exports.register = async (req, res) => {
         timeZone: newUser.timeZone,
       },
     });
-
   } catch (error) {
     console.error("Register Error:", error);
     res.status(500).json({ message: "Server error" });
@@ -340,12 +344,13 @@ exports.login = async (req, res) => {
         return res.status(200).json({
           status: 200,
           success: false,
-          message: "Your email is not verified. Please verify with OTP sent earlier.",
+          message:
+            "Your email is not verified. Please verify with OTP sent earlier.",
           data: [],
         });
       }
       // Generate new hardcoded OTP and expiry
-      const otp = "123456";  // hardcoded OTP
+      const otp = "123456"; // hardcoded OTP
       const otpExpiry = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
       user.otp = { code: otp, expiresAt: otpExpiry };
       await user.save();
@@ -389,9 +394,9 @@ exports.login = async (req, res) => {
             name: user.name,
             email: user.email,
             mobileNumber: user.mobileNumber,
-            isVerified:user.isVerified,
+            isVerified: user.isVerified,
             country: user.country,
-            timeZone: user.timeZone
+            timeZone: user.timeZone,
           },
         },
       ],
@@ -463,7 +468,7 @@ exports.logout = async (req, res) => {
 
     user.refreshToken = "";
     await user.save();
-    
+
     // Remove all device tokens for this user
     await DeviceToken.deleteMany({ userId: user._id });
 
@@ -634,20 +639,13 @@ exports.updateProfile = async (req, res) => {
     const userId = req.user?.id;
 
     if (!userId) {
-      return res.status(401).json({ success: false, message: 'Unauthorized' });
+      return res.status(401).json({ success: false, message: "Unauthorized" });
     }
 
     const updateFields = {};
 
-    const {
-      name,
-      email,
-      phoneNumber,
-      gender,
-      dateOfBirth,
-      country,
-      language
-    } = req.body;
+    const { name, email, phoneNumber, gender, dateOfBirth, country, language } =
+      req.body;
 
     if (name) updateFields.name = name;
     if (email) updateFields.email = email;
@@ -674,17 +672,16 @@ exports.updateProfile = async (req, res) => {
     const updatedUser = await User.findByIdAndUpdate(
       userId,
       { $set: updateFields },
-      { new: true }
+      { new: true },
     );
 
     res.status(200).json({
       success: true,
-      message: 'Profile updated successfully',
+      message: "Profile updated successfully",
       data: updatedUser,
     });
-
   } catch (err) {
-    console.error('Update Profile Error:', err);
-    res.status(500).json({ success: false, message: 'Server error' });
+    console.error("Update Profile Error:", err);
+    res.status(500).json({ success: false, message: "Server error" });
   }
 };
