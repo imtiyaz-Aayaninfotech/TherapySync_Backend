@@ -1199,17 +1199,16 @@ exports.rescheduleSession = async (req, res) => {
       });
     }
 
-
     if (!targetSlot.isAvailable) {
       return res.status(400).json({
         message: `Slot already booked`,
       });
     }
-    
-const normalizedNewDate = moment
-  .tz(newDate, "YYYY-MM-DD", adminTz)
-  .startOf("day")
-  .toDate();
+
+    const normalizedNewDate = moment
+      .tz(newDate, "YYYY-MM-DD", adminTz)
+      .startOf("day")
+      .toDate();
 
     // 🔹 7️⃣ FREE OLD SLOT (AFTER validation success)
     const oldDateStr = moment(oldSession.date).format("YYYY-MM-DD");

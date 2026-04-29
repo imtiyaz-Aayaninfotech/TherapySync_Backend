@@ -656,7 +656,6 @@ exports.changePassword = async (req, res) => {
 
     const user = await User.findById(userId);
 
-    // ❌ user not found
     if (!user) {
       return res.status(404).json({
         status: 404,
@@ -671,7 +670,6 @@ exports.changePassword = async (req, res) => {
 
     const isMatch = await bcrypt.compare(currentPassword, user.password);
 
-    // ❌ wrong current password
     if (!isMatch) {
       return res.status(400).json({
         status: 400,
@@ -688,7 +686,6 @@ exports.changePassword = async (req, res) => {
     user.password = hashedNewPassword;
     await user.save();
 
-    // ✅ success
     return res.status(200).json({
       status: 200,
       success: true,
@@ -702,7 +699,6 @@ exports.changePassword = async (req, res) => {
   } catch (err) {
     console.error("Change Password Error:", err);
 
-    // ❌ server error
     return res.status(500).json({
       status: 500,
       success: false,
@@ -720,7 +716,6 @@ exports.updateProfile = async (req, res) => {
   try {
     const userId = req.user?.id;
 
-    // ❌ Unauthorized
     if (!userId) {
       return res.status(401).json({
         success: false,
@@ -736,7 +731,6 @@ exports.updateProfile = async (req, res) => {
     const { name, email, phoneNumber, gender, dateOfBirth, country, language } =
       req.body;
 
-    // ✅ Optional fields
     if (name) updateFields.name = name;
     if (email) updateFields.email = email;
     if (phoneNumber) updateFields.phoneNumber = phoneNumber;
@@ -744,7 +738,6 @@ exports.updateProfile = async (req, res) => {
     if (dateOfBirth) updateFields.dateOfBirth = dateOfBirth;
     if (language) updateFields.language = language;
 
-    // ❌ Invalid country
     if (country) {
       if (!countryTimeZoneMap[country]) {
         return res.status(400).json({
@@ -766,8 +759,7 @@ exports.updateProfile = async (req, res) => {
       updateFields.image = imageUrl;
     }
 
-    // ❌ No data provided
-    if (Object.keys(updateFields).length === 0) {
+      if (Object.keys(updateFields).length === 0) {
       return res.status(400).json({
         success: false,
         message: {
@@ -783,7 +775,6 @@ exports.updateProfile = async (req, res) => {
       { new: true },
     );
 
-    // ✅ Success
     return res.status(200).json({
       success: true,
       message: {
@@ -795,7 +786,6 @@ exports.updateProfile = async (req, res) => {
   } catch (err) {
     console.error("Update Profile Error:", err);
 
-    // ❌ Server error
     return res.status(500).json({
       success: false,
       message: {
