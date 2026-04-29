@@ -671,12 +671,71 @@ exports.changePassword = async (req, res) => {
 };
 
 // update Profile
+// exports.updateProfile = async (req, res) => {
+//   try {
+//     const userId = req.user?.id;
+
+//     if (!userId) {
+//       return res.status(401).json({ success: false, message: "Unauthorized" });
+//     }
+
+//     const updateFields = {};
+
+//     const { name, email, phoneNumber, gender, dateOfBirth, country, language } =
+//       req.body;
+
+//     if (name) updateFields.name = name;
+//     if (email) updateFields.email = email;
+//     if (phoneNumber) updateFields.phoneNumber = phoneNumber;
+//     if (gender) updateFields.gender = gender;
+//     if (dateOfBirth) updateFields.dateOfBirth = dateOfBirth;
+//     if (language) updateFields.language = language;
+
+//     // ✅ If country updated → auto update timezone
+//     if (country) {
+//       if (!countryTimeZoneMap[country]) {
+//         return res.status(400).json({ message: "Invalid country selected." });
+//       }
+
+//       updateFields.country = country;
+//       updateFields.timeZone = countryTimeZoneMap[country];
+//     }
+
+//     if (req.file) {
+//       const imageUrl = await uploadSingleImage(req.file);
+//       updateFields.image = imageUrl;
+//     }
+
+//     const updatedUser = await User.findByIdAndUpdate(
+//       userId,
+//       { $set: updateFields },
+//       { new: true },
+//     );
+
+//     res.status(200).json({
+//       success: true,
+//       message: "Profile updated successfully",
+//       data: updatedUser,
+//     });
+//   } catch (err) {
+//     console.error("Update Profile Error:", err);
+//     res.status(500).json({ success: false, message: "Server error" });
+//   }
+// };
+
 exports.updateProfile = async (req, res) => {
   try {
     const userId = req.user?.id;
 
+    // ❌ Unauthorized
     if (!userId) {
-      return res.status(401).json({ success: false, message: "Unauthorized" });
+      return res.status(401).json({
+        success: false,
+        message: {
+          en: "Unauthorized",
+          de: "Nicht autorisiert"
+        },
+      });
     }
 
     const updateFields = {};
@@ -684,6 +743,7 @@ exports.updateProfile = async (req, res) => {
     const { name, email, phoneNumber, gender, dateOfBirth, country, language } =
       req.body;
 
+    // ✅ Optional fields
     if (name) updateFields.name = name;
     if (email) updateFields.email = email;
     if (phoneNumber) updateFields.phoneNumber = phoneNumber;
@@ -691,19 +751,37 @@ exports.updateProfile = async (req, res) => {
     if (dateOfBirth) updateFields.dateOfBirth = dateOfBirth;
     if (language) updateFields.language = language;
 
-    // ✅ If country updated → auto update timezone
+    // ❌ Invalid country
     if (country) {
       if (!countryTimeZoneMap[country]) {
-        return res.status(400).json({ message: "Invalid country selected." });
+        return res.status(400).json({
+          success: false,
+          message: {
+            en: "Invalid country selected.",
+            de: "Ungültiges Land ausgewählt."
+          },
+        });
       }
 
       updateFields.country = country;
       updateFields.timeZone = countryTimeZoneMap[country];
     }
 
-    if (req.file) {
+    // ✅ Image optional
+    if (req.file && req.file.buffer) {
       const imageUrl = await uploadSingleImage(req.file);
       updateFields.image = imageUrl;
+    }
+
+    // ❌ No data provided
+    if (Object.keys(updateFields).length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: {
+          en: "No data provided to update",
+          de: "Keine Daten zum Aktualisieren bereitgestellt"
+        },
+      });
     }
 
     const updatedUser = await User.findByIdAndUpdate(
@@ -712,13 +790,26 @@ exports.updateProfile = async (req, res) => {
       { new: true },
     );
 
-    res.status(200).json({
+    // ✅ Success
+    return res.status(200).json({
       success: true,
-      message: "Profile updated successfully",
+      message: {
+        en: "Profile updated successfully",
+        de: "Profil erfolgreich aktualisiert"
+      },
       data: updatedUser,
     });
+
   } catch (err) {
     console.error("Update Profile Error:", err);
-    res.status(500).json({ success: false, message: "Server error" });
+
+    // ❌ Server error
+    return res.status(500).json({
+      success: false,
+      message: {
+        en: "Server error",
+        de: "Serverfehler"
+      },
+    });
   }
 };
