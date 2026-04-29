@@ -48,6 +48,34 @@ const allowedCountries = [
   'Greece'
 ];
 
+const translateToGerman = (msg) => {
+  const map = {
+    'Please enter a valid email address.': 'Bitte geben Sie eine gültige E-Mail-Adresse ein.',
+    'Email must be at most 50 characters.': 'E-Mail darf maximal 50 Zeichen lang sein.',
+    'Email is required.': 'E-Mail ist erforderlich.',
+
+    'Password must be at least 6 characters.': 'Passwort muss mindestens 6 Zeichen lang sein.',
+    'Password is required.': 'Passwort ist erforderlich.',
+
+    'Name must be at most 50 characters.': 'Name darf maximal 50 Zeichen lang sein.',
+    'Name must only contain letters and spaces.': 'Name darf nur Buchstaben und Leerzeichen enthalten.',
+    'Name is required.': 'Name ist erforderlich.',
+    'Name must be at least 2 characters.': 'Name muss mindestens 2 Zeichen lang sein.',
+
+    'Phone number must be 7 to 15 digits.': 'Telefonnummer muss 7 bis 15 Ziffern enthalten.',
+
+    'Gender must be one of Male, Female, or Other.': 'Geschlecht muss Male, Female oder Other sein.',
+
+    'Date of birth cannot be in the future.': 'Geburtsdatum darf nicht in der Zukunft liegen.',
+
+    'Invalid country selected.': 'Ungültiges Land ausgewählt.',
+    'Country is required.': 'Land ist erforderlich.',
+
+    'Invalid user ID format': 'Ungültiges Benutzer-ID-Format'
+  };
+
+  return map[msg] || msg;
+};
 
 // ================= REGISTER VALIDATION =================
 exports.validateRegisterUser = (req, res, next) => {
@@ -114,9 +142,16 @@ exports.validateRegisterUser = (req, res, next) => {
 
   const { error } = schema.validate(req.body, { allowUnknown: true, convert: true });
 
-  if (error) {
-    return res.status(400).json({ message: error.details[0].message });
-  }
+ if (error) {
+  const msg = error.details[0].message;
+
+  return res.status(400).json({
+    message: {
+      EN: msg,
+      DE: translateToGerman(msg)
+    }
+  });
+}
 
   next();
 };
