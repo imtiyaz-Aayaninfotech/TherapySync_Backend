@@ -14,7 +14,10 @@ exports.submitCoachingEnquiry = async (req, res) => {
     if (!userId || !organisation) {
       return res.status(400).json({
         success: false,
-        message: "userId and organisation are required",
+        message: {
+          en: "userId and organisation are required",
+          de: "userId und Organisation sind erforderlich",
+        },
       });
     }
 
@@ -23,7 +26,10 @@ exports.submitCoachingEnquiry = async (req, res) => {
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: "User not found",
+        message: {
+          en: "User not found",
+          de: "Benutzer nicht gefunden",
+        },
       });
     }
 
@@ -32,7 +38,10 @@ exports.submitCoachingEnquiry = async (req, res) => {
     if (!category || category.category !== "Executive Coaching") {
       return res.status(400).json({
         success: false,
-        message: "Invalid category",
+        message: {
+          en: "Invalid category",
+          de: "Ungültige Kategorie",
+        },
       });
     }
 
@@ -49,7 +58,10 @@ exports.submitCoachingEnquiry = async (req, res) => {
 
     return res.status(201).json({
       success: true,
-      message: "Enquiry submitted successfully",
+      message: {
+        en: "Enquiry submitted successfully",
+        de: "Anfrage erfolgreich übermittelt",
+      },
       data: enquiry,
     });
   } catch (error) {

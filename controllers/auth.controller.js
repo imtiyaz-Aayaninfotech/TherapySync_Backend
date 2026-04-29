@@ -306,7 +306,10 @@ exports.login = async (req, res) => {
       return res.status(404).json({
         status: 404,
         success: false,
-        message: "User not found",
+         message: {
+          en: "User not found",
+          de: "Benutzer nicht gefunden"
+        },
         data: [],
       });
     }
@@ -344,8 +347,10 @@ exports.login = async (req, res) => {
         return res.status(200).json({
           status: 200,
           success: false,
-          message:
-            "Your email is not verified. Please verify with OTP sent earlier.",
+          message: {
+            en: "Your email is not verified. Please verify with OTP sent earlier.",
+            de: "Ihre E-Mail ist nicht verifiziert. Bitte überprüfen Sie sie mit dem zuvor gesendeten OTP."
+          },
           data: [],
         });
       }
@@ -370,7 +375,10 @@ exports.login = async (req, res) => {
       return res.status(400).json({
         status: 400,
         success: false,
-        message: "Incorrect password",
+        message: {
+          en: "Incorrect password",
+          de: "Falsches Passwort"
+        },
         data: [],
       });
     }
@@ -384,7 +392,10 @@ exports.login = async (req, res) => {
     return res.status(200).json({
       status: 200,
       success: true,
-      message: "Login successful",
+       message: {
+        en: "Login successful",
+        de: "Anmeldung erfolgreich"
+      },
       data: [
         {
           accessToken,
@@ -406,7 +417,10 @@ exports.login = async (req, res) => {
     return res.status(500).json({
       status: 500,
       success: false,
-      message: "Internal server error",
+      message: {
+        en: "Internal server error",
+        de: "Interner Serverfehler"
+      },
       data: [],
     });
   }
@@ -497,7 +511,10 @@ exports.forgotPassword = async (req, res) => {
     if (!user || !user.isVerified) {
       return res
         .status(404)
-        .json({ message: "User not found or not verified" });
+        .json({message: {
+          en: "User not found or not verified",
+          de: "Benutzer nicht gefunden oder nicht verifiziert"
+        } });
     }
 
     // ❗ Enforce 5-minute wait
@@ -505,7 +522,10 @@ exports.forgotPassword = async (req, res) => {
       const waitMs = new Date(user.otp.expiresAt).getTime() - Date.now();
       const waitSec = Math.ceil(waitMs / 1000);
       return res.status(429).json({
-        message: `Please wait ${waitSec} seconds before requesting a new OTP.`,
+        message: {
+          en: `Please wait ${waitSec} seconds before requesting a new OTP.`,
+          de: `Bitte warten Sie ${waitSec} Sekunden, bevor Sie ein neues OTP anfordern.`
+        }
       });
     }
 
@@ -517,10 +537,16 @@ exports.forgotPassword = async (req, res) => {
 
     // await sendOtpEmail(email, otp, "Password Reset");
 
-    res.json({ message: "OTP sent to your email for password reset" });
+    res.json({ message: {
+        en: "OTP sent to your email for password reset",
+        de: "OTP wurde an Ihre E-Mail zum Zurücksetzen des Passworts gesendet"
+      } });
   } catch (error) {
     console.error("Forgot Password Error:", error);
-    res.status(500).json({ message: "Server error" });
+    res.status(500).json({message: {
+        en: "Server error",
+        de: "Serverfehler"
+      } });
   }
 };
 

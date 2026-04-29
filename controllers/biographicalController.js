@@ -111,7 +111,10 @@ exports.submitBiographicalResponse = async (req, res) => {
     res.status(200).json({
       status: 200,
       success: true,
-      message: "Biographical response submitted successfully",
+       message: {
+        en: "Biographical response submitted successfully",
+        de: "Biografische Antwort erfolgreich übermittelt"
+      },
       data: [response],
     });
   } catch (err) {

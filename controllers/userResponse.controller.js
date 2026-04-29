@@ -13,7 +13,10 @@ exports.submitResponse = async (req, res) => {
     res.status(200).json({
       status: 200,
       success: true,
-      message: "Response saved successfully",
+      message: {
+        en: "Response saved successfully",
+        de: "Antwort erfolgreich gespeichert"
+      },
       data: [response]
     });
   } catch (err) {

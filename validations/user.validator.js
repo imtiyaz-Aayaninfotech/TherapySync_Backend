@@ -210,8 +210,15 @@ exports.validateUpdateUser = (req, res, next) => {
   const { error } = schema.validate(req.body, { allowUnknown: true, convert: true });
 
   if (error) {
-    return res.status(400).json({ message: error.details[0].message });
-  }
+  const msg = error.details[0].message;
+
+  return res.status(400).json({
+    message: {
+      en: msg,
+      de: translateToGerman(msg)
+    }
+  });
+}
 
   next();
 };
@@ -222,8 +229,13 @@ exports.validateObjectId = (req, res, next) => {
   const { id } = req.params;
 
   if (!mongoose.Types.ObjectId.isValid(id)) {
-    return res.status(400).json({ message: 'Invalid user ID format' });
-  }
+  return res.status(400).json({
+    message: {
+      en: 'Invalid user ID format',
+      de: translateToGerman('Invalid user ID format')
+    }
+  });
+}
 
   next();
 };
