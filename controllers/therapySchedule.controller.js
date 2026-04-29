@@ -1060,7 +1060,11 @@ exports.rescheduleSession = async (req, res) => {
 
     if (!newDate || !start || !end || !reason) {
       return res.status(400).json({
-        message: "newDate, start, end and reason are required",
+        // message: "newDate, start, end and reason are required",
+        message: {
+          en: "newDate, start, end and reason are required",
+          de: "newDate, start, end und Grund sind erforderlich",
+        },
       });
     }
 
@@ -1068,7 +1072,12 @@ exports.rescheduleSession = async (req, res) => {
     const schedule = await TherapySchedule.findById(req.params.id);
 
     if (!schedule) {
-      return res.status(404).json({ message: "Schedule not found" });
+      return res.status(404).json({
+        /*message: "Schedule not found"*/ message: {
+          en: "Schedule not found",
+          de: "Zeitplan nicht gefunden",
+        },
+      });
     }
 
     // 🔹 2️⃣ Determine session index
@@ -1079,7 +1088,11 @@ exports.rescheduleSession = async (req, res) => {
 
     if (idx < 0 || idx >= schedule.sessions.length) {
       return res.status(400).json({
-        message: "Invalid session index",
+        // message: "Invalid session index",
+        message: {
+          en: "Invalid session index",
+          de: "Ungültiger Sitzungsindex",
+        },
       });
     }
 
@@ -1090,7 +1103,12 @@ exports.rescheduleSession = async (req, res) => {
     const userDoc = await User.findById(schedule.user);
 
     if (!userDoc) {
-      return res.status(404).json({ message: "User not found" });
+      return res.status(404).json({
+        /* message: "User not found"*/ message: {
+          en: "User not found",
+          de: "Benutzer nicht gefunden",
+        },
+      });
     }
 
     const userTz = userDoc.timeZone;
@@ -1108,7 +1126,11 @@ exports.rescheduleSession = async (req, res) => {
 
     if (!newSlotDoc) {
       return res.status(400).json({
-        message: `Admin has not set working hours for ${newDate}`,
+        // message: `Admin has not set working hours for ${newDate}`,
+        message: {
+          en: `Admin has not set working hours for ${newDate}`,
+          de: `Admin hat keine Arbeitszeiten für ${newDate} festgelegt`,
+        },
       });
     }
 
@@ -1129,7 +1151,11 @@ exports.rescheduleSession = async (req, res) => {
 
     if (!userStartMoment.isValid() || !userEndMoment.isValid()) {
       return res.status(400).json({
-        message: "Invalid time format",
+        // message: "Invalid time format",
+        message: {
+          en: "Invalid time format",
+          de: "Ungültiges Zeitformat",
+        },
       });
     }
 
@@ -1152,7 +1178,11 @@ exports.rescheduleSession = async (req, res) => {
 
     if (!targetSlot) {
       return res.status(400).json({
-        message: `Slot starting at ${start} not found`,
+        // message: `Slot starting at ${start} not found`,
+        message: {
+          en: `Slot starting at ${start} not found`,
+          de: `Slot mit Startzeit ${start} nicht gefunden`,
+        },
       });
     }
 
@@ -1195,13 +1225,21 @@ exports.rescheduleSession = async (req, res) => {
 
     if (existingBooking) {
       return res.status(400).json({
-        message: `Slot already booked`,
+        // message: `Slot already booked`,
+        message: {
+          en: "Slot already booked",
+          de: "Slot ist bereits gebucht",
+        },
       });
     }
 
     if (!targetSlot.isAvailable) {
       return res.status(400).json({
-        message: `Slot already booked`,
+        // message: `Slot already booked`,
+        message: {
+          en: "Slot already booked",
+          de: "Slot ist bereits gebucht",
+        },
       });
     }
 
@@ -1278,7 +1316,11 @@ exports.rescheduleSession = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message: `Session ${idx + 1} rescheduled successfully`,
+      // message: `Session ${idx + 1} rescheduled successfully`,
+      message: {
+        en: `Session ${idx + 1} rescheduled successfully`,
+        de: `Sitzung ${idx + 1} erfolgreich neu geplant`
+      },
       data: updated,
     });
   } catch (err) {
