@@ -178,6 +178,13 @@ exports.register = async (req, res) => {
       isVerified: false,
     });
 
+   
+    if (req.file) {
+      const imageUrl = await uploadSingleImage(req.file);
+      newUser.image = imageUrl;
+    }
+  //  console.log("FILE:", req.file);
+
     await newUser.save();
 
     return res.status(201).json({
@@ -306,9 +313,9 @@ exports.login = async (req, res) => {
       return res.status(404).json({
         status: 404,
         success: false,
-         message: {
+        message: {
           en: "User not found",
-          de: "Benutzer nicht gefunden"
+          de: "Benutzer nicht gefunden",
         },
         data: [],
       });
@@ -349,7 +356,7 @@ exports.login = async (req, res) => {
           success: false,
           message: {
             en: "Your email is not verified. Please verify with OTP sent earlier.",
-            de: "Ihre E-Mail ist nicht verifiziert. Bitte überprüfen Sie sie mit dem zuvor gesendeten OTP."
+            de: "Ihre E-Mail ist nicht verifiziert. Bitte überprüfen Sie sie mit dem zuvor gesendeten OTP.",
           },
           data: [],
         });
@@ -377,7 +384,7 @@ exports.login = async (req, res) => {
         success: false,
         message: {
           en: "Incorrect password",
-          de: "Falsches Passwort"
+          de: "Falsches Passwort",
         },
         data: [],
       });
@@ -392,9 +399,9 @@ exports.login = async (req, res) => {
     return res.status(200).json({
       status: 200,
       success: true,
-       message: {
+      message: {
         en: "Login successful",
-        de: "Anmeldung erfolgreich"
+        de: "Anmeldung erfolgreich",
       },
       data: [
         {
@@ -419,7 +426,7 @@ exports.login = async (req, res) => {
       success: false,
       message: {
         en: "Internal server error",
-        de: "Interner Serverfehler"
+        de: "Interner Serverfehler",
       },
       data: [],
     });
@@ -509,12 +516,12 @@ exports.forgotPassword = async (req, res) => {
 
     const user = await User.findOne({ email });
     if (!user || !user.isVerified) {
-      return res
-        .status(404)
-        .json({message: {
+      return res.status(404).json({
+        message: {
           en: "User not found or not verified",
-          de: "Benutzer nicht gefunden oder nicht verifiziert"
-        } });
+          de: "Benutzer nicht gefunden oder nicht verifiziert",
+        },
+      });
     }
 
     // ❗ Enforce 5-minute wait
@@ -524,8 +531,8 @@ exports.forgotPassword = async (req, res) => {
       return res.status(429).json({
         message: {
           en: `Please wait ${waitSec} seconds before requesting a new OTP.`,
-          de: `Bitte warten Sie ${waitSec} Sekunden, bevor Sie ein neues OTP anfordern.`
-        }
+          de: `Bitte warten Sie ${waitSec} Sekunden, bevor Sie ein neues OTP anfordern.`,
+        },
       });
     }
 
@@ -537,16 +544,20 @@ exports.forgotPassword = async (req, res) => {
 
     // await sendOtpEmail(email, otp, "Password Reset");
 
-    res.json({ message: {
+    res.json({
+      message: {
         en: "OTP sent to your email for password reset",
-        de: "OTP wurde an Ihre E-Mail zum Zurücksetzen des Passworts gesendet"
-      } });
+        de: "OTP wurde an Ihre E-Mail zum Zurücksetzen des Passworts gesendet",
+      },
+    });
   } catch (error) {
     console.error("Forgot Password Error:", error);
-    res.status(500).json({message: {
+    res.status(500).json({
+      message: {
         en: "Server error",
-        de: "Serverfehler"
-      } });
+        de: "Serverfehler",
+      },
+    });
   }
 };
 
