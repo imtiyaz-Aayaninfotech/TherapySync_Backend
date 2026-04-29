@@ -1,6 +1,5 @@
 const Agreement = require("../models/Agreement.model");
 
-
 // Create or update Agreement
 exports.createOrUpdateAgreement = async (req, res) => {
   try {
@@ -63,27 +62,29 @@ exports.createOrUpdateAgreement = async (req, res) => {
 // Get current active TOS
 exports.getActiveAgreement = async (req, res) => {
   try {
-    const agreement = await Agreement.findOne({ isActive: true }).sort({ lastUpdated: -1 });
+    const agreement = await Agreement.findOne({ isActive: true }).sort({
+      lastUpdated: -1,
+    });
     if (!agreement) {
       return res.status(404).json({
         status: 404,
         success: false,
         message: "No active agreement found.",
-        data: []
+        data: [],
       });
     }
     res.status(200).json({
       status: 200,
       success: true,
       message: "Active agreement fetched.",
-      data: agreement
+      data: agreement,
     });
   } catch (err) {
     res.status(500).json({
       status: 500,
       success: false,
       message: err.message,
-      data: []
+      data: [],
     });
   }
 };
@@ -92,27 +93,36 @@ exports.getActiveAgreement = async (req, res) => {
 exports.acceptAgreement = async (req, res) => {
   try {
     const { userId } = req.body;
-    const activeAgreement = await Agreement.findOne({ isActive: true }).sort({ lastUpdated: -1 });
+
+    const activeAgreement = await Agreement.findOne({ isActive: true }).sort({
+      lastUpdated: -1,
+    });
 
     if (!activeAgreement) {
       return res.status(404).json({
         status: 404,
         success: false,
-        message: "No active agreement to accept.",
-        data: []
+        message: {
+          en: "No active agreement to accept.",
+          de: "Keine aktive Vereinbarung zum Akzeptieren vorhanden.",
+        },
+        data: [],
       });
     }
 
-    const alreadyAccepted = activeAgreement.acceptedByUsers.find(entry =>
-      entry.user.toString() === userId.toString()
+    const alreadyAccepted = activeAgreement.acceptedByUsers.find(
+      (entry) => entry.user.toString() === userId.toString(),
     );
 
     if (alreadyAccepted) {
       return res.status(400).json({
         status: 400,
         success: false,
-        message: "Already accepted.",
-        data: []
+        message: {
+          en: "Already accepted.",
+          de: "Bereits akzeptiert.",
+        },
+        data: [],
       });
     }
 
@@ -123,18 +133,25 @@ exports.acceptAgreement = async (req, res) => {
 
     await activeAgreement.save();
 
-    res.status(200).json({
+    // ✅ success
+    return res.status(200).json({
       status: 200,
       success: true,
-      message: "Agreement accepted successfully.",
-      data: []
+      message: {
+        en: "Agreement accepted successfully.",
+        de: "Vereinbarung erfolgreich akzeptiert.",
+      },
+      data: [],
     });
   } catch (err) {
-    res.status(500).json({
+    return res.status(500).json({
       status: 500,
       success: false,
-      message: err.message,
-      data: []
+      message: {
+        en: err.message || "Server error",
+        de: "Serverfehler",
+      },
+      data: [],
     });
   }
 };
@@ -147,14 +164,14 @@ exports.getAllAgreements = async (req, res) => {
       status: 200,
       success: true,
       message: "All agreements fetched.",
-      data: agreements
+      data: agreements,
     });
   } catch (err) {
     res.status(500).json({
       status: 500,
       success: false,
       message: err.message,
-      data: []
+      data: [],
     });
   }
 };
@@ -179,8 +196,8 @@ exports.getAcceptedAgreementUsers = async (req, res) => {
 
     // Extract only necessary info from accepted users
     const acceptedUsers = agreement.acceptedByUsers
-      .filter(entry => entry.user) // In case a user was deleted
-      .map(entry => ({
+      .filter((entry) => entry.user) // In case a user was deleted
+      .map((entry) => ({
         name: entry.user.name,
         email: entry.user.email,
         region: entry.user.region,

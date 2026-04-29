@@ -178,12 +178,11 @@ exports.register = async (req, res) => {
       isVerified: false,
     });
 
-   
     if (req.file) {
       const imageUrl = await uploadSingleImage(req.file);
       newUser.image = imageUrl;
     }
-  //  console.log("FILE:", req.file);
+    //  console.log("FILE:", req.file);
 
     await newUser.save();
 
@@ -587,20 +586,32 @@ exports.resetPassword = async (req, res) => {
   try {
     const { email, otp, newPassword } = req.body;
 
-    // Validate required fields
     if (!email || !otp || !newPassword) {
-      return res
-        .status(400)
-        .json({ message: "Email, OTP, and new password are required" });
+      return res.status(400).json({
+        message: {
+          en: "Email, OTP, and new password are required",
+          de: "E-Mail, OTP und neues Passwort sind erforderlich",
+        },
+      });
     }
 
     const user = await User.findOne({ email });
     if (!user || !user.otp || user.otp.code !== otp) {
-      return res.status(400).json({ message: "Invalid OTP" });
+      return res.status(400).json({
+        message: {
+          en: "Invalid OTP",
+          de: "Ungültiges OTP",
+        },
+      });
     }
 
     if (user.otp.expiresAt < new Date()) {
-      return res.status(400).json({ message: "OTP expired" });
+      return res.status(400).json({
+        message: {
+          en: "OTP expired",
+          de: "OTP ist abgelaufen",
+        },
+      });
     }
 
     const hashed = await bcrypt.hash(newPassword, 10);
@@ -608,10 +619,20 @@ exports.resetPassword = async (req, res) => {
     user.otp = undefined; // Clear OTP
     await user.save();
 
-    res.json({ message: "Password reset successful. You can now log in." });
+    return res.json({
+      message: {
+        en: "Password reset successful. You can now log in.",
+        de: "Passwort erfolgreich zurückgesetzt. Sie können sich jetzt anmelden.",
+      },
+    });
   } catch (error) {
     console.error("Reset Password Error:", error);
-    res.status(500).json({ message: "Server error" });
+    res.status(500).json({
+      message: {
+        en: "Server error",
+        de: "Serverfehler",
+      },
+    });
   }
 };
 
@@ -620,31 +641,45 @@ exports.changePassword = async (req, res) => {
     const userId = req.user.id;
     const { currentPassword, newPassword } = req.body;
 
+    // ❌ required fields
     if (!currentPassword || !newPassword) {
       return res.status(400).json({
         status: 400,
         success: false,
-        message: "Current password and new password are required",
+        message: {
+          en: "Current password and new password are required",
+          de: "Aktuelles Passwort und neues Passwort sind erforderlich"
+        },
         data: [],
       });
     }
 
     const user = await User.findById(userId);
+
+    // ❌ user not found
     if (!user) {
       return res.status(404).json({
         status: 404,
         success: false,
-        message: "User not found",
+        message: {
+          en: "User not found",
+          de: "Benutzer nicht gefunden"
+        },
         data: [],
       });
     }
 
     const isMatch = await bcrypt.compare(currentPassword, user.password);
+
+    // ❌ wrong current password
     if (!isMatch) {
       return res.status(400).json({
         status: 400,
         success: false,
-        message: "Current password is incorrect",
+        message: {
+          en: "Current password is incorrect",
+          de: "Aktuelles Passwort ist falsch"
+        },
         data: [],
       });
     }
@@ -653,76 +688,34 @@ exports.changePassword = async (req, res) => {
     user.password = hashedNewPassword;
     await user.save();
 
+    // ✅ success
     return res.status(200).json({
       status: 200,
       success: true,
-      message: "Password changed successfully",
+      message: {
+        en: "Password changed successfully",
+        de: "Passwort erfolgreich geändert"
+      },
       data: [],
     });
+
   } catch (err) {
     console.error("Change Password Error:", err);
+
+    // ❌ server error
     return res.status(500).json({
       status: 500,
       success: false,
-      message: "Internal server error",
+      message: {
+        en: "Internal server error",
+        de: "Interner Serverfehler"
+      },
       data: [],
     });
   }
 };
 
 // update Profile
-// exports.updateProfile = async (req, res) => {
-//   try {
-//     const userId = req.user?.id;
-
-//     if (!userId) {
-//       return res.status(401).json({ success: false, message: "Unauthorized" });
-//     }
-
-//     const updateFields = {};
-
-//     const { name, email, phoneNumber, gender, dateOfBirth, country, language } =
-//       req.body;
-
-//     if (name) updateFields.name = name;
-//     if (email) updateFields.email = email;
-//     if (phoneNumber) updateFields.phoneNumber = phoneNumber;
-//     if (gender) updateFields.gender = gender;
-//     if (dateOfBirth) updateFields.dateOfBirth = dateOfBirth;
-//     if (language) updateFields.language = language;
-
-//     // ✅ If country updated → auto update timezone
-//     if (country) {
-//       if (!countryTimeZoneMap[country]) {
-//         return res.status(400).json({ message: "Invalid country selected." });
-//       }
-
-//       updateFields.country = country;
-//       updateFields.timeZone = countryTimeZoneMap[country];
-//     }
-
-//     if (req.file) {
-//       const imageUrl = await uploadSingleImage(req.file);
-//       updateFields.image = imageUrl;
-//     }
-
-//     const updatedUser = await User.findByIdAndUpdate(
-//       userId,
-//       { $set: updateFields },
-//       { new: true },
-//     );
-
-//     res.status(200).json({
-//       success: true,
-//       message: "Profile updated successfully",
-//       data: updatedUser,
-//     });
-//   } catch (err) {
-//     console.error("Update Profile Error:", err);
-//     res.status(500).json({ success: false, message: "Server error" });
-//   }
-// };
-
 exports.updateProfile = async (req, res) => {
   try {
     const userId = req.user?.id;
@@ -733,7 +726,7 @@ exports.updateProfile = async (req, res) => {
         success: false,
         message: {
           en: "Unauthorized",
-          de: "Nicht autorisiert"
+          de: "Nicht autorisiert",
         },
       });
     }
@@ -758,7 +751,7 @@ exports.updateProfile = async (req, res) => {
           success: false,
           message: {
             en: "Invalid country selected.",
-            de: "Ungültiges Land ausgewählt."
+            de: "Ungültiges Land ausgewählt.",
           },
         });
       }
@@ -779,7 +772,7 @@ exports.updateProfile = async (req, res) => {
         success: false,
         message: {
           en: "No data provided to update",
-          de: "Keine Daten zum Aktualisieren bereitgestellt"
+          de: "Keine Daten zum Aktualisieren bereitgestellt",
         },
       });
     }
@@ -795,11 +788,10 @@ exports.updateProfile = async (req, res) => {
       success: true,
       message: {
         en: "Profile updated successfully",
-        de: "Profil erfolgreich aktualisiert"
+        de: "Profil erfolgreich aktualisiert",
       },
       data: updatedUser,
     });
-
   } catch (err) {
     console.error("Update Profile Error:", err);
 
@@ -808,7 +800,7 @@ exports.updateProfile = async (req, res) => {
       success: false,
       message: {
         en: "Server error",
-        de: "Serverfehler"
+        de: "Serverfehler",
       },
     });
   }
