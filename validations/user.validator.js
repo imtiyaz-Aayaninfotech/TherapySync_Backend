@@ -147,8 +147,8 @@ exports.validateRegisterUser = (req, res, next) => {
 
   return res.status(400).json({
     message: {
-      EN: msg,
-      DE: translateToGerman(msg)
+      en: msg,
+      de: translateToGerman(msg)
     }
   });
 }
